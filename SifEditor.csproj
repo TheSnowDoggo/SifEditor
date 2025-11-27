@@ -8,14 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="SCEBufferAPI">
-      <HintPath>lib\SCEBufferAPI.dll</HintPath>
-    </Reference>
     <Reference Include="SCENeo">
-      <HintPath>lib\SCENeo.dll</HintPath>
+      <HintPath>..\SCENeo\bin\Debug\net9.0\SCENeo.dll</HintPath>
     </Reference>
-    <Reference Include="SCE_WinInputNeo">
-      <HintPath>lib\SCE_WinInputNeo.dll</HintPath>
+    <Reference Include="SCEWin">
+      <HintPath>..\SCEWin\bin\Debug\net9.0\SCEWin.dll</HintPath>
     </Reference>
   </ItemGroup>
 
