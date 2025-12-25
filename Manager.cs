@@ -2,6 +2,7 @@
 using SCENeo.UI;
 using SCENeo.Utils;
 using SCEWin;
+using System;
 using System.Collections.Concurrent;
 
 namespace SifEditor;
@@ -22,19 +23,12 @@ internal sealed class Manager
         Vec2I.Up, Vec2I.Down, Vec2I.Left, Vec2I.Right,
     ];
 
-    #region Setup
-
     private readonly Thread _inputThread;
 
     private readonly Updater _updater;
 
     private readonly Viewport _viewport;
-
     private readonly Display _display;
-
-    #endregion
-
-    #region Renderables
 
     private readonly DisplayMap _canvas;
 
@@ -48,9 +42,13 @@ internal sealed class Manager
 
     private readonly TextBox _export;
 
-    #endregion
+    private readonly TextBox _text;
 
-    private readonly ConcurrentQueue<Action> _inputJobQueue = [];
+    private readonly VirtualConsole _console = new();
+
+    private readonly ConcurrentQueue<InputData> _inputQueue = new();
+
+    private readonly ConsoleInputStream _inputStream = new();
 
     private bool _lastSingle;
 
@@ -59,6 +57,8 @@ internal sealed class Manager
     private Pixel _brush = Pixel.Blue;
 
     private PaintMode _paintMode = PaintMode.Wide;
+
+    private bool _entry;
 
     public Manager()
     {
@@ -89,19 +89,24 @@ internal sealed class Manager
 
         _fpsUI = new TextBox()
         {
+            Height    = 1,
             BasePixel = Pixel.Transparent,
         };
 
-        _brushVisual = new TextBox(19, 1)
+        _brushVisual = new TextBox()
         {
+            Width = 19,
+            Height = 1,
             TextBgColor = SCEColor.Transparent,
-            Anchor      = Anchor.Right,
+            Anchor = Anchor.Right,
         };
 
-        _brushSelector = new VerticalSelector(11, 17)
+        _brushSelector = new VerticalSelector()
         {
-            Offset    = new Vec2I(0, 1),
-            Anchor    = Anchor.Right,
+            Width = 11,
+            Height = 17,
+            Offset = new Vec2I(0, 1),
+            Anchor = Anchor.Right,
             BasePixel = Pixel.DarkGray,
         };
 
@@ -122,9 +127,27 @@ internal sealed class Manager
             TextWrapping = true,
         };
 
+        _text = new TextBox()
+        {
+            Width = 50,
+            Height = 3,
+            Anchor = Anchor.Center | Anchor.Middle,
+            TextWrapping = true,
+        };
+
+        _console = new VirtualConsole()
+        {
+            Width = 30,
+            Height = 15,
+            BufferWidth = 30,
+            BufferHeight = 9000,
+            Autoscroll = true,
+            Offset = new Vec2I(0, 1),
+        };
+
         _cursor = new DisplayMap(2, 1);
 
-        _viewport.Renderables.AddEvery(_canvas, _fpsUI, _cursor, _brushVisual, _brushSelector, _export);
+        _viewport.Renderables.AddEvery(_canvas, _fpsUI, _cursor, _brushVisual, _brushSelector, _export, _text, _console);
     }
 
     public void Run()
@@ -145,81 +168,103 @@ internal sealed class Manager
 
     private void Update(double delta)
     {
-        MoveCanvas(delta);
+        UpdateInput(delta);
 
         _fpsUI.Text = $"FPS: {_updater.FPS}";
-
-        while (_inputJobQueue.TryDequeue(out Action? job))
-        {
-            job.Invoke();
-        }
 
         _display.Update();
     }
 
+    private void UpdateInput(double delta)
+    {
+        if (_entry)
+        {
+            while (Console.KeyAvailable)
+            {
+                OnEntryKey(Console.ReadKey(true));
+            }
+
+            return;
+        }
+
+        while (_inputQueue.TryDequeue(out InputData? inputData))
+        {
+            OnInput(inputData);
+        }
+
+        MoveCanvas(delta);
+    }
+
+    private void OnEntryKey(ConsoleKeyInfo cki)
+    {
+        _inputStream.Next(cki);
+
+        _text.Text = _inputStream.ToString();
+    }
+
     private void StartInput()
     {
-        WinKeyboard.OnInput += WinKeyboard_OnInput;
+        WinKeyboard.OnInput += LLKeyboard_OnInput;
 
         WinKeyboard.Start();
     }
 
-    private void WinKeyboard_OnInput(MessageType type, KBDLLHookStruct kbdll)
+    private void OnInput(InputData inputData)
     {
-        if (type != MessageType.KeyDown)
+        return;
+
+        if (inputData.Type != MessageType.KeyDown)
         {
             return;
         }
 
-        Key key = (Key)kbdll.VkCode;
-
-        switch (key)
+        switch (inputData.Kbdll.Key)
         {
         case Key.P:
-            _inputJobQueue.Enqueue(Pick);
+            Pick();
             break;
         case Key.O:
-            _inputJobQueue.Enqueue(Export);
+            Export();
             break;
         case Key.Space:
-            _inputJobQueue.Enqueue(Paint);
+            Paint();
             break;
         case Key.F:
-            _inputJobQueue.Enqueue(FloodFill);
+            FloodFill();
             break;
         case Key.Tab:
-            _inputJobQueue.Enqueue(() => _brushSelector.Enabled = !_brushSelector.Enabled);
+            _brushSelector.Enabled = !_brushSelector.Enabled;
             break;
 
-        #region Move
         case Key.W:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Up));
+            SlowMove(Vec2I.Up);
             break;
         case Key.S:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Down));
+            SlowMove(Vec2I.Down);
             break;
         case Key.A:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Left * 2));
+            SlowMove(Vec2I.Left * 2);
             break;
         case Key.D:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Right * 2));
+            SlowMove(Vec2I.Right * 2);
             break;
         case Key.Q:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Left));
+            SlowMove(Vec2I.Left);
             break;
         case Key.E:
-            _inputJobQueue.Enqueue(() => SlowMove(Vec2I.Right));
+            SlowMove(Vec2I.Right);
             break;
-        #endregion
 
         case Key.Enter:
-            _inputJobQueue.Enqueue(SelectBrush);
+            SelectBrush();
             break;
         case Key.Up:
-            _inputJobQueue.Enqueue(() => MoveSelector(-1));
+            MoveSelector(-1);
             break;
         case Key.Down:
-            _inputJobQueue.Enqueue(() => MoveSelector(+1));
+            MoveSelector(+1);
+            break;
+        case Key.V:
             break;
         }
     }
@@ -231,8 +276,6 @@ internal sealed class Manager
             _brushSelector.WrapMove(move);
         }
     }
-
-    #region Movement
 
     private static Vec2I MoveVector()
     {
@@ -298,10 +341,6 @@ internal sealed class Manager
         UpdateCursor();
     }
  
-    #endregion
-
-    #region Cursor
-
     private void UpdateCursor()
     {
         Vec2I pos = GetCursorCanvasPosition();
@@ -323,10 +362,6 @@ internal sealed class Manager
     {
         return _cursor.Offset - _canvas.Offset;
     }
-
-    #endregion
-
-    #region Tools
 
     private void Pick()
     {
@@ -420,10 +455,6 @@ internal sealed class Manager
         }
     }
 
-    #endregion
-
-    #region Brush
-
     private void UpdateBrushVisual()
     {
         _brushVisual.Text        = $"Brush - {_brush.BgColor}";
@@ -440,8 +471,6 @@ internal sealed class Manager
         }
     }
 
-    #endregion
-
     private void Export()
     {
         _export.Enabled = !_export.Enabled;
@@ -456,12 +485,19 @@ internal sealed class Manager
 
     private void Display_OnResize(Vec2I newSize)
     {
-        _viewport.Resize(newSize);
+        _viewport.Width = newSize.X;
+        _viewport.Height = newSize.Y;
 
-        _fpsUI.Resize(newSize.X, 1);
+        _fpsUI.Width = newSize.X;
 
         _cursor.Offset = newSize / 2;
 
-        _export.Resize(newSize);
+        _export.Width = newSize.X;
+        _export.Height = newSize.Y;
+    }
+
+    private void LLKeyboard_OnInput(MessageType type, KBDLLHookStruct kbdll)
+    {
+        _inputQueue.Enqueue(new InputData(type, kbdll));
     }
 }
