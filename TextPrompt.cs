@@ -14,7 +14,7 @@ internal sealed class TextPrompt : IRenderSource
 
     private const double BlinkRate = 0.5;
 
-    private readonly TextLabel _tb;
+    private readonly TextLabel _label;
     private readonly DisplayMap _cursor;
     private readonly VirtualOverlay _overlay;
 
@@ -30,7 +30,7 @@ internal sealed class TextPrompt : IRenderSource
 
     public TextPrompt()
     {
-        _tb = new TextLabel()
+        _label = new TextLabel()
         {
             Width = 80,
             Height = 3,
@@ -46,14 +46,14 @@ internal sealed class TextPrompt : IRenderSource
 
         _overlay = new VirtualOverlay()
         {
-            Source  = _tb,
+            Source  = _label,
             Overlay = _cursor,
         };
     }
 
     public Alert? Alert { get; set; }
 
-    public bool Visible { get { return _tb.Visible; } }
+    public bool Visible { get { return _label.Visible; } }
 
     public void OnInput(ConsoleKeyInfo cki)
     {
@@ -80,7 +80,7 @@ internal sealed class TextPrompt : IRenderSource
 
     public bool Open(string message, Result result, Action<object> callback)
     {
-        if (_tb.Visible)
+        if (_label.Visible)
         {
             return false;
         }
@@ -92,7 +92,7 @@ internal sealed class TextPrompt : IRenderSource
         SetText(message);
         UpdateCursorOffset();
 
-        _tb.Visible = true;
+        _label.Visible = true;
 
         return true;
     }
@@ -182,7 +182,7 @@ internal sealed class TextPrompt : IRenderSource
     {
         int index = _message.Length + _inputStream.CharacterIndex;
 
-        _cursor.Offset = new Vec2I(index % _tb.Width, index / _tb.Width);
+        _cursor.Offset = new Vec2I(index % _label.Width, index / _label.Width);
 
         // Reset blink
         _cursor.Visible = true;
@@ -191,24 +191,24 @@ internal sealed class TextPrompt : IRenderSource
 
     private void SetText(string text)
     {
-        int maxCharacters = _tb.Width * _tb.Height;
+        int maxCharacters = _label.Width * _label.Height;
 
         if (text.Length <= maxCharacters)
         {
-            _tb.Text = text;
+            _label.Text = text;
             return;
         }
 
-        _tb.Text = $"{_tb.Text[..(maxCharacters - 3)]}...";
+        _label.Text = $"{_label.Text[..(maxCharacters - 3)]}...";
     }
 
     private void ExitPrompt()
     {
-        _tb.Visible = false;
+        _label.Visible = false;
 
         _inputStream.Clear();
 
-        _tb.Text = string.Empty;
+        _label.Text = string.Empty;
         _message = string.Empty;
         _callback = null;
     }

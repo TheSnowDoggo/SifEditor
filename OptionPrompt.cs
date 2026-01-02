@@ -5,13 +5,13 @@ namespace SifEditor;
 
 internal sealed class OptionPrompt : IRenderSource
 {
-    private readonly VerticalSelector _vs;
+    private readonly ListBox _vs;
 
     private Action<int>? _callback = null;
 
     public OptionPrompt()
     {
-        _vs = new VerticalSelector()
+        _vs = new ListBox()
         {
             Width = 30,
             Anchor = SCENeo.Anchor.Center | SCENeo.Anchor.Middle,
@@ -23,7 +23,7 @@ internal sealed class OptionPrompt : IRenderSource
 
     public IEnumerable<IRenderable> Render()
     {
-        yield return _vs;
+        return [_vs];
     }
 
     public void OnInput(ConsoleKeyInfo cki)
@@ -46,7 +46,7 @@ internal sealed class OptionPrompt : IRenderSource
         }
     }
 
-    public void Open(UpdateCollection<VerticalSelector.Option> options, Action<int> callback)
+    public void Open(UpdateList<ListBox.Option> options, Action<int> callback)
     {
         _vs.Options = options;
         _vs.Height = options.Count;

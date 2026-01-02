@@ -5,13 +5,13 @@ namespace SifEditor;
 
 internal sealed class Alert : IRenderSource
 {
-    private readonly TextLabel _tb;
+    private readonly TextLabel _label;
 
     private double _timer;
 
     public Alert()
     {
-        _tb = new TextLabel()
+        _label = new TextLabel()
         {
             Width = 50,
             Height = 2,
@@ -19,18 +19,6 @@ internal sealed class Alert : IRenderSource
             Anchor = Anchor.Bottom,
             TextWrapping = TextLabel.Wrapping.Word,
         };
-    }
-
-    public void Show(string message, SCEColor color = SCEColor.Red)
-    {
-        _tb.Text = message;
-
-        _tb.BasePixel = new Pixel(color);
-        _tb.TextFgColor = color.Contrast();
-
-        _timer = 3;
-
-        _tb.Visible = true;
     }
 
     public void Update(double delta)
@@ -41,11 +29,23 @@ internal sealed class Alert : IRenderSource
             return;
         }
 
-        _tb.Visible = false;
+        _label.Visible = false;
     }
 
     public IEnumerable<IRenderable> Render()
     {
-        return [_tb];
+        return [_label];
+    }
+
+    public void Show(string message, SCEColor color = SCEColor.Red)
+    {
+        _label.Text = message;
+
+        _label.BasePixel = new Pixel(color);
+        _label.TextFgColor = color.Contrast();
+
+        _timer = 3;
+
+        _label.Visible = true;
     }
 }

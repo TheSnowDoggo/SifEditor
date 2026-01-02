@@ -6,7 +6,7 @@ namespace SifEditor;
 
 internal sealed class Manager : IRenderSource
 {
-    private static readonly VerticalSelector.Option OptionTemplate = new()
+    private static readonly ListBox.Option OptionTemplate = new()
     {
         Anchor = Anchor.Center,
         FitToLength = true,
@@ -27,7 +27,7 @@ internal sealed class Manager : IRenderSource
 
     // renderable
     private readonly TextLabel _fpsUI;
-    private readonly VerticalSelector _brushSelector;
+    private readonly ListBox _brushSelector;
     private readonly TextLabel _export;
 
     public Manager()
@@ -57,7 +57,7 @@ internal sealed class Manager : IRenderSource
             BasePixel = Pixel.Null,
         };
 
-        _brushSelector = new VerticalSelector()
+        _brushSelector = new ListBox()
         {
             Width = 11,
             Height = 17,
@@ -71,7 +71,7 @@ internal sealed class Manager : IRenderSource
         {
             SCEColor color = (SCEColor)i;
 
-            var option = new VerticalSelector.Option()
+            var option = new ListBox.Option()
             {
                 Text = color.ToString(),
                 UnselectedBgColor = SCEColor.Transparent,
