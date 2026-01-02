@@ -1,104 +1,53 @@
 ﻿using SCENeo;
-using SCENeo.UI;
-using SCENeo.Utils;
+using SCENeo.Ui;
 using SCEWin;
-using System;
-using System.Collections.Concurrent;
 
 namespace SifEditor;
 
-internal sealed class Manager
+internal sealed class Manager : IRenderSource
 {
-    private enum PaintMode
-    {
-        Wide,
-        Left,
-        Right,
-    }
-
     private const double CameraSpeed = 40;
-
-    private readonly IReadOnlyCollection<Vec2I> FloodFillAxis = 
-    [
-        Vec2I.Up, Vec2I.Down, Vec2I.Left, Vec2I.Right,
-    ];
-
-    private readonly Thread _inputThread;
 
     private readonly Updater _updater;
 
     private readonly Viewport _viewport;
     private readonly Display _display;
 
-    private readonly DisplayMap _canvas;
+    // render source
+    private readonly Canvas _canvas;
+    private readonly Prompt _prompt;
+    private readonly Alert _alert;
 
+    private readonly RenderManager _renderManager = [];
+
+    // renderable
     private readonly TextBox _fpsUI;
-
-    private readonly DisplayMap _cursor;
-
-    private readonly TextBox _brushVisual;
-
     private readonly VerticalSelector _brushSelector;
-
     private readonly TextBox _export;
 
-    private readonly TextBox _text;
-
-    private readonly VirtualConsole _console = new();
-
-    private readonly ConcurrentQueue<InputData> _inputQueue = new();
-
-    private readonly ConsoleInputStream _inputStream = new();
-
-    private bool _lastSingle;
+    private bool _lastOrthogonal;
 
     private Vec2 _cameraPos;
 
-    private Pixel _brush = Pixel.Blue;
-
-    private PaintMode _paintMode = PaintMode.Wide;
-
-    private bool _entry;
+    private bool _fastMove;
 
     public Manager()
     {
-        _inputThread = new Thread(StartInput);
-
         _updater = new Updater()
         {
             OnUpdate = Update,
         };
 
-        _viewport = new Viewport()
-        {
-            BasePixel = new Pixel(SCEColor.DarkCyan),
-        };
+        _canvas = new Canvas();
 
-        _display = new Display()
-        {
-            Source   = _viewport,
-            Output   = WinOutput.Instance,
-            OnResize = Display_OnResize,
-        };
+        _prompt = new Prompt();
 
-        _canvas = new DisplayMap(80, 40);
-
-        _canvas.Fill(Pixel.White);
-
-        _canvas.Fill(Pixel.Black, new Rect2DI(0, 0, 4, 10));
+        _alert = new Alert();
 
         _fpsUI = new TextBox()
         {
-            Height    = 1,
-            BasePixel = Pixel.Transparent,
-        };
-
-        _brushVisual = new TextBox()
-        {
-            Width = 19,
             Height = 1,
-            TextBgColor = SCEColor.Transparent,
-            Anchor = Anchor.Right,
+            BasePixel = Pixel.Null,
         };
 
         _brushSelector = new VerticalSelector()
@@ -123,155 +72,143 @@ internal sealed class Manager
 
         _export = new TextBox()
         {
-            Enabled      = false,
-            TextWrapping = true,
+            Visible = false,
+            TextWrapping = TextBox.Wrapping.Character,
         };
 
-        _text = new TextBox()
+        _renderManager = new RenderManager()
         {
-            Width = 50,
-            Height = 3,
-            Anchor = Anchor.Center | Anchor.Middle,
-            TextWrapping = true,
+            Sources = [_canvas, this, _prompt, _alert],
         };
 
-        _console = new VirtualConsole()
+        _viewport = new Viewport()
         {
-            Width = 30,
-            Height = 15,
-            BufferWidth = 30,
-            BufferHeight = 9000,
-            Autoscroll = true,
-            Offset = new Vec2I(0, 1),
+            BasePixel = Pixel.DarkCyan,
+            Source = _renderManager,
         };
 
-        _cursor = new DisplayMap(2, 1);
-
-        _viewport.Renderables.AddEvery(_canvas, _fpsUI, _cursor, _brushVisual, _brushSelector, _export, _text, _console);
+        _display = new Display()
+        {
+            Source = _viewport,
+            Output = WinOutput.Instance,
+            OnResize = Display_OnResize,
+        };
     }
 
     public void Run()
     {
-        Start();
-
-        _inputThread.Start();
-
         _updater.Start();
     }
 
-    private void Start()
+    public IEnumerable<IRenderable> Render()
     {
-        UpdateCursor();
-
-        UpdateBrushVisual();
+        return [_fpsUI, _brushSelector, _export];
     }
 
     private void Update(double delta)
     {
         UpdateInput(delta);
 
-        _fpsUI.Text = $"FPS: {_updater.FPS}";
+        _fpsUI.Text = $"FPS: {_updater.FPS:0}";
+
+        _prompt.Update(delta);
+        _alert.Update(delta);
 
         _display.Update();
     }
 
     private void UpdateInput(double delta)
     {
-        if (_entry)
+        if (_prompt.Visible)
         {
             while (Console.KeyAvailable)
             {
-                OnEntryKey(Console.ReadKey(true));
+                _prompt.OnInput(Console.ReadKey(true));
             }
 
             return;
         }
 
-        while (_inputQueue.TryDequeue(out InputData? inputData))
+        _fastMove = Input.KeyPressed(Key.Shift) || Console.CapsLock;
+
+        while (Console.KeyAvailable)
         {
-            OnInput(inputData);
+            OnInput(Console.ReadKey(true));
         }
 
         MoveCanvas(delta);
     }
 
-    private void OnEntryKey(ConsoleKeyInfo cki)
+    private void OnInput(ConsoleKeyInfo cki)
     {
-        _inputStream.Next(cki);
-
-        _text.Text = _inputStream.ToString();
-    }
-
-    private void StartInput()
-    {
-        WinKeyboard.OnInput += LLKeyboard_OnInput;
-
-        WinKeyboard.Start();
-    }
-
-    private void OnInput(InputData inputData)
-    {
-        return;
-
-        if (inputData.Type != MessageType.KeyDown)
+        switch (cki.Key)
         {
-            return;
-        }
-
-        switch (inputData.Kbdll.Key)
-        {
-        case Key.P:
-            Pick();
+        case ConsoleKey.P:
+            _canvas.Pick();
             break;
-        case Key.O:
+        case ConsoleKey.O:
             Export();
             break;
-        case Key.Space:
-            Paint();
+        case ConsoleKey.I:
+            _prompt.Open("Enter SIF: ", ImportSif);
             break;
-        case Key.F:
-            FloodFill();
+        case ConsoleKey.Spacebar:
+            _canvas.Paint();
             break;
-        case Key.Tab:
-            _brushSelector.Enabled = !_brushSelector.Enabled;
+        case ConsoleKey.F:
+            _canvas.FloodFill();
+            break;
+        case ConsoleKey.Tab:
+            _brushSelector.Visible = !_brushSelector.Visible;
+            break;
+        case ConsoleKey.B:
+            _viewport.BasePixel = HoveredBrush();
+            break;
+        case ConsoleKey.T:
+            _canvas.NextMode();
             break;
 
-        case Key.W:
+        // function
+        case ConsoleKey.F1:
+            _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? 60 : Updater.Uncapped;
+            break;
+
+        // move
+        case ConsoleKey.W:
             SlowMove(Vec2I.Up);
             break;
-        case Key.S:
+        case ConsoleKey.S:
             SlowMove(Vec2I.Down);
             break;
-        case Key.A:
+        case ConsoleKey.A:
             SlowMove(Vec2I.Left * 2);
             break;
-        case Key.D:
+        case ConsoleKey.D:
             SlowMove(Vec2I.Right * 2);
             break;
-        case Key.Q:
+        case ConsoleKey.Q:
             SlowMove(Vec2I.Left);
             break;
-        case Key.E:
+        case ConsoleKey.E:
             SlowMove(Vec2I.Right);
             break;
 
-        case Key.Enter:
+        // select
+        case ConsoleKey.Enter:
             SelectBrush();
             break;
-        case Key.Up:
+        case ConsoleKey.UpArrow:
             MoveSelector(-1);
             break;
-        case Key.Down:
+        case ConsoleKey.DownArrow:
             MoveSelector(+1);
-            break;
-        case Key.V:
             break;
         }
     }
 
     private void MoveSelector(int move)
     {
-        if (_brushSelector.Enabled)
+        if (_brushSelector.Visible)
         {
             _brushSelector.WrapMove(move);
         }
@@ -295,7 +232,7 @@ internal sealed class Manager
 
     private void MoveCanvas(double delta)
     {
-        if (!Input.KeyPressed(Key.Shift))
+        if (!_fastMove)
         {
             return;
         }
@@ -307,24 +244,29 @@ internal sealed class Manager
             return;
         }
 
-        bool single = moveVec.X == 0 || moveVec.Y == 0;
+        bool orthogonal = moveVec.X == 0 || moveVec.Y == 0;
 
         // for smooth diaganol movement
-        if (!single && _lastSingle)
+        if (!orthogonal && _lastOrthogonal)
         {
             _cameraPos = _cameraPos.Round();
         }
 
-        _lastSingle = single;
+        _lastOrthogonal = orthogonal;
 
         _cameraPos += ((Vec2)moveVec).Normalized() * (float)(CameraSpeed * delta);
 
         UpdateCanvasPosition();
+
+        if (Input.KeyPressed(Key.Space))
+        {
+            _canvas.Paint();
+        }
     }
 
     private void SlowMove(Vec2I move)
     {
-        if (Input.KeyPressed(Key.Shift))
+        if (_fastMove)
         {
             return;
         }
@@ -336,168 +278,56 @@ internal sealed class Manager
 
     private void UpdateCanvasPosition()
     {
-        _canvas.Offset = -(Vec2I)_cameraPos.Round();
+        _canvas.SetOffset(-(Vec2I)_cameraPos.Round());
+    }
 
-        UpdateCursor();
+    private void ImportSif(string sif)
+    {
+        try
+        {
+            _canvas.Import(SIFUtils.Deserialize(sif));
+        }
+        catch (Exception e)
+        {
+            _alert.Show($"Failed to import: {e.Message}");
+        }
+    }
+
+    private Pixel HoveredBrush()
+    {
+        return new Pixel((SCEColor)_brushSelector.Selected - 1);
     }
  
-    private void UpdateCursor()
-    {
-        Vec2I pos = GetCursorCanvasPosition();
-
-        if (_canvas.InRange(pos))
-        {
-            _cursor[0, 0] = new Pixel('>', _canvas[pos].BgColor.Contrast(), SCEColor.Transparent);
-        }
-
-        pos += Vec2I.Right;
-
-        if (_canvas.InRange(pos))
-        {
-            _cursor[1, 0] = new Pixel('<', _canvas[pos].BgColor.Contrast(), SCEColor.Transparent);
-        }
-    }
-
-    private Vec2I GetCursorCanvasPosition()
-    {
-        return _cursor.Offset - _canvas.Offset;
-    }
-
-    private void Pick()
-    {
-        Vec2I pos = GetCursorCanvasPosition();
-
-        if (_canvas.InRange(pos))
-        {
-            _brush = _canvas[pos];
-            UpdateBrushVisual();
-        }
-    }
-
-    private void Paint()
-    {
-        Vec2I pos = GetCursorCanvasPosition();
-        
-        switch (_paintMode)
-        {
-        case PaintMode.Wide:
-            if (_canvas.InRange(pos))
-            {
-                _canvas[pos] = _brush;
-            }
-
-            pos += Vec2I.Right;
-
-            if (_canvas.InRange(pos))
-            {
-                _canvas[pos] = _brush;
-            }
-            break;
-        case PaintMode.Left:
-            if (_canvas.InRange(pos))
-            {
-                _canvas[pos] = _brush;
-            }
-            break;
-        case PaintMode.Right:
-            pos += Vec2I.Right;
-
-            if (_canvas.InRange(pos))
-            {
-                _canvas[pos] = _brush;
-            }
-            break;
-        }
-    }
-
-    private void FloodFill()
-    {
-        Vec2I pos = GetCursorCanvasPosition();
-
-        if (!_canvas.InRange(pos))
-        {
-            return;
-        }
-
-        SCEColor fill = _canvas[pos].BgColor;
-
-        Pixel brush = _brush;
-
-        if (fill == brush.BgColor)
-        {
-            return;
-        }
-
-        var stack = new Stack<Vec2I>();
-
-        stack.Push(pos);
-
-        while (stack.TryPop(out Vec2I curPos))
-        {
-            _canvas[curPos] = brush;
-
-            foreach (Vec2I axis in FloodFillAxis)
-            {
-                Vec2I nextPos = curPos + axis;
-
-                if (!_canvas.InRange(nextPos))
-                {
-                    continue;
-                }
-
-                if (_canvas[nextPos].BgColor != fill)
-                {
-                    continue;
-                }
-
-                stack.Push(nextPos);
-            }
-        }
-    }
-
-    private void UpdateBrushVisual()
-    {
-        _brushVisual.Text        = $"Brush - {_brush.BgColor}";
-        _brushVisual.BasePixel   = _brush;
-        _brushVisual.TextFgColor = _brush.BgColor.Contrast();
-    }
-
     private void SelectBrush()
     {
-        if (_brushSelector.Enabled)
+        if (_brushSelector.Visible)
         {
-            _brush = new Pixel((SCEColor)_brushSelector.Selected - 1);
-            UpdateBrushVisual();
+            _canvas.Brush = HoveredBrush();
         }
     }
 
     private void Export()
     {
-        _export.Enabled = !_export.Enabled;
+        _export.Visible = !_export.Visible;
 
-        if (!_export.Enabled)
+        if (!_export.Visible)
         {
             return;
         }
 
-        _export.Text = SIFUtils.Serialize(_canvas);
+        _export.Text = _canvas.Export();
     }
 
-    private void Display_OnResize(Vec2I newSize)
+    private void Display_OnResize(int width, int height)
     {
-        _viewport.Width = newSize.X;
-        _viewport.Height = newSize.Y;
+        _viewport.Width  = width;
+        _viewport.Height = height;
 
-        _fpsUI.Width = newSize.X;
+        _fpsUI.Width = width;
 
-        _cursor.Offset = newSize / 2;
+        _canvas.SetCursorPosition(new Vec2I(width, height) / 2);
 
-        _export.Width = newSize.X;
-        _export.Height = newSize.Y;
-    }
-
-    private void LLKeyboard_OnInput(MessageType type, KBDLLHookStruct kbdll)
-    {
-        _inputQueue.Enqueue(new InputData(type, kbdll));
+        _export.Width  = width;
+        _export.Height = height;
     }
 }
