@@ -3,11 +3,18 @@ using SCENeo.Ui;
 
 namespace SifEditor;
 
-internal sealed class Prompt : IRenderSource
+internal sealed class TextPrompt : IRenderSource
 {
+    public enum Result
+    {
+        String,
+        Integer,
+        Double,
+    }
+
     private const double BlinkRate = 0.5;
 
-    private readonly TextBox _tb;
+    private readonly TextLabel _tb;
     private readonly DisplayMap _cursor;
     private readonly VirtualOverlay _overlay;
 
@@ -15,18 +22,20 @@ internal sealed class Prompt : IRenderSource
 
     private string _message = string.Empty;
 
-    private Action<string>? _callback = null;
+    private Result _result;
+
+    private Action<object>? _callback = null;
 
     private double _blinkTimer;
 
-    public Prompt()
+    public TextPrompt()
     {
-        _tb = new TextBox()
+        _tb = new TextLabel()
         {
             Width = 80,
             Height = 3,
             Anchor = Anchor.Center | Anchor.Middle,
-            TextWrapping = TextBox.Wrapping.Character,
+            TextWrapping = TextLabel.Wrapping.Character,
             Visible = false,
         };
 
@@ -42,6 +51,8 @@ internal sealed class Prompt : IRenderSource
         };
     }
 
+    public Alert? Alert { get; set; }
+
     public bool Visible { get { return _tb.Visible; } }
 
     public void OnInput(ConsoleKeyInfo cki)
@@ -49,16 +60,10 @@ internal sealed class Prompt : IRenderSource
         switch (cki.Key)
         {
         case ConsoleKey.Escape:
-            _tb.Visible = false;
-
-            ExitPrompt();
+            Exit();
             break;
         case ConsoleKey.Enter:
-            _tb.Visible = false;
-
-            _callback?.Invoke(_inputStream.ToString());
-
-            ExitPrompt();
+            Enter();
             break;
         default:
             if (!_inputStream.Next(cki))
@@ -73,7 +78,7 @@ internal sealed class Prompt : IRenderSource
         }
     }
 
-    public bool Open(string message, Action<string>? callback = null)
+    public bool Open(string message, Result result, Action<object> callback)
     {
         if (_tb.Visible)
         {
@@ -82,6 +87,7 @@ internal sealed class Prompt : IRenderSource
 
         _message = message;
         _callback = callback;
+        _result = result;
 
         SetText(message);
         UpdateCursorOffset();
@@ -89,6 +95,11 @@ internal sealed class Prompt : IRenderSource
         _tb.Visible = true;
 
         return true;
+    }
+
+    public bool Open(string message, Action<object> callback)
+    {
+        return Open(message, Result.String, callback);
     }
 
     public IEnumerable<IRenderable> Render()
@@ -107,6 +118,64 @@ internal sealed class Prompt : IRenderSource
         _blinkTimer = 0;
 
         _cursor.Visible = !_cursor.Visible;
+    }
+
+    private void Exit()
+    {
+        ExitPrompt();
+    }
+
+    private void Enter()
+    {
+        if (_callback == null)
+        {
+            Exit();
+            return;
+        }
+
+        object? result = GetResult();
+
+        if (result == null)
+        {
+            return;
+        }
+
+        var callback = _callback;
+
+        ExitPrompt();
+
+        callback.Invoke(result);
+    }
+
+    private object? GetResult()
+    {
+        string str = _inputStream.ToString();
+
+        switch (_result)
+        {
+        case Result.String:
+            return str;
+        case Result.Integer:
+        {
+            if (int.TryParse(str, out int value))
+            {
+                return value;
+            }
+            Alert?.Show("Enter a valid integer.");
+            break;
+        }
+        case Result.Double:
+        {
+            if (double.TryParse(str, out double value))
+            {
+                return value;
+            }
+            Alert?.Show("Enter a valid double.");
+            break;
+        }
+        }
+
+        return null;
     }
 
     private void UpdateCursorOffset()
@@ -135,6 +204,8 @@ internal sealed class Prompt : IRenderSource
 
     private void ExitPrompt()
     {
+        _tb.Visible = false;
+
         _inputStream.Clear();
 
         _tb.Text = string.Empty;

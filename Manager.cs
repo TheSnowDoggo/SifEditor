@@ -6,30 +6,23 @@ namespace SifEditor;
 
 internal sealed class Manager : IRenderSource
 {
-    private const double CameraSpeed = 40;
-
     private readonly Updater _updater;
 
     private readonly Viewport _viewport;
     private readonly Display _display;
 
     // render source
-    private readonly Canvas _canvas;
-    private readonly Prompt _prompt;
     private readonly Alert _alert;
+    private readonly Canvas _canvas;
+    private readonly TextPrompt _textPrompt;
+    private readonly OptionPrompt _optionPrompt;
 
     private readonly RenderManager _renderManager = [];
 
     // renderable
-    private readonly TextBox _fpsUI;
+    private readonly TextLabel _fpsUI;
     private readonly VerticalSelector _brushSelector;
-    private readonly TextBox _export;
-
-    private bool _lastOrthogonal;
-
-    private Vec2 _cameraPos;
-
-    private bool _fastMove;
+    private readonly TextLabel _export;
 
     public Manager()
     {
@@ -38,13 +31,21 @@ internal sealed class Manager : IRenderSource
             OnUpdate = Update,
         };
 
-        _canvas = new Canvas();
-
-        _prompt = new Prompt();
-
         _alert = new Alert();
 
-        _fpsUI = new TextBox()
+        _canvas = new Canvas()
+        {
+            Alert = _alert,
+        };
+
+        _textPrompt = new TextPrompt()
+        {
+            Alert = _alert,
+        };
+
+        _optionPrompt = new OptionPrompt();
+
+        _fpsUI = new TextLabel()
         {
             Height = 1,
             BasePixel = Pixel.Null,
@@ -57,28 +58,31 @@ internal sealed class Manager : IRenderSource
             Offset = new Vec2I(0, 1),
             Anchor = Anchor.Right,
             BasePixel = Pixel.DarkGray,
+            StackMode = StackMode.TopDown,
         };
 
         for (int i = 0; i < 17; i++)
         {
             SCEColor color = (SCEColor)i - 1;
 
-            _brushSelector[i] = new Option()
+            var option = new VerticalSelector.Option()
             {
                 Text = color.ToString().PadRight(_brushSelector.Width),
                 UnselectedBgColor = SCEColor.Transparent,
             };
+
+            _brushSelector.Options.Add(option);
         }
 
-        _export = new TextBox()
+        _export = new TextLabel()
         {
             Visible = false,
-            TextWrapping = TextBox.Wrapping.Character,
+            TextWrapping = TextLabel.Wrapping.Character,
         };
 
         _renderManager = new RenderManager()
         {
-            Sources = [_canvas, this, _prompt, _alert],
+            Sources = [_canvas, this, _textPrompt, _alert, _optionPrompt],
         };
 
         _viewport = new Viewport()
@@ -89,10 +93,12 @@ internal sealed class Manager : IRenderSource
 
         _display = new Display()
         {
-            Source = _viewport,
+            Renderable = _viewport,
             Output = WinOutput.Instance,
-            OnResize = Display_OnResize,
         };
+
+        _display.OnResize += Display_OnResize;
+        _display.OnResize += _canvas.Display_OnResize;
     }
 
     public void Run()
@@ -111,7 +117,7 @@ internal sealed class Manager : IRenderSource
 
         _fpsUI.Text = $"FPS: {_updater.FPS:0}";
 
-        _prompt.Update(delta);
+        _textPrompt.Update(delta);
         _alert.Update(delta);
 
         _display.Update();
@@ -119,30 +125,43 @@ internal sealed class Manager : IRenderSource
 
     private void UpdateInput(double delta)
     {
-        if (_prompt.Visible)
+        if (_optionPrompt.Visible)
         {
             while (Console.KeyAvailable)
             {
-                _prompt.OnInput(Console.ReadKey(true));
+                _optionPrompt.OnInput(Console.ReadKey(true));
             }
 
             return;
         }
 
-        _fastMove = Input.KeyPressed(Key.Shift) || Console.CapsLock;
+        if (_textPrompt.Visible)
+        {
+            while (Console.KeyAvailable)
+            {
+                _textPrompt.OnInput(Console.ReadKey(true));
+            }
+
+            return;
+        }
+
+        _canvas.FastMove = Input.Capitalize();
 
         while (Console.KeyAvailable)
         {
             OnInput(Console.ReadKey(true));
         }
 
-        MoveCanvas(delta);
+        _canvas.Update(delta);
     }
 
     private void OnInput(ConsoleKeyInfo cki)
     {
         switch (cki.Key)
         {
+        case ConsoleKey.Escape:
+            _export.Visible = false;
+            break;
         case ConsoleKey.P:
             _canvas.Pick();
             break;
@@ -150,7 +169,7 @@ internal sealed class Manager : IRenderSource
             Export();
             break;
         case ConsoleKey.I:
-            _prompt.Open("Enter SIF: ", ImportSif);
+            Import();
             break;
         case ConsoleKey.Spacebar:
             _canvas.Paint();
@@ -164,8 +183,11 @@ internal sealed class Manager : IRenderSource
         case ConsoleKey.B:
             _viewport.BasePixel = HoveredBrush();
             break;
+        case ConsoleKey.R:
+            ResizePrompt();
+            break;
         case ConsoleKey.T:
-            _canvas.NextMode();
+            _canvas.NextPaintMode();
             break;
 
         // function
@@ -175,22 +197,22 @@ internal sealed class Manager : IRenderSource
 
         // move
         case ConsoleKey.W:
-            SlowMove(Vec2I.Up);
+            _canvas.MoveCamera(Vec2I.Up);
             break;
         case ConsoleKey.S:
-            SlowMove(Vec2I.Down);
+            _canvas.MoveCamera(Vec2I.Down);
             break;
         case ConsoleKey.A:
-            SlowMove(Vec2I.Left * 2);
+            _canvas.MoveCamera(Vec2I.Left * 2);
             break;
         case ConsoleKey.D:
-            SlowMove(Vec2I.Right * 2);
+            _canvas.MoveCamera(Vec2I.Right * 2);
             break;
         case ConsoleKey.Q:
-            SlowMove(Vec2I.Left);
+            _canvas.MoveCamera(Vec2I.Left);
             break;
         case ConsoleKey.E:
-            SlowMove(Vec2I.Right);
+            _canvas.MoveCamera(Vec2I.Right);
             break;
 
         // select
@@ -214,83 +236,19 @@ internal sealed class Manager : IRenderSource
         }
     }
 
-    private static Vec2I MoveVector()
+    private void ResizePrompt()
     {
-        Vec2I move = Vec2I.Zero;
-
-        if (Input.KeyPressed(Key.W))
-            move += Vec2I.Up;
-        if (Input.KeyPressed(Key.S))
-            move += Vec2I.Down;
-        if (Input.KeyPressed(Key.A))
-            move += Vec2I.Left;
-        if (Input.KeyPressed(Key.D))
-            move += Vec2I.Right;
-
-        return move;
-    }
-
-    private void MoveCanvas(double delta)
-    {
-        if (!_fastMove)
+        _textPrompt.Open("Resize - Enter width: ", TextPrompt.Result.Integer, value =>
         {
-            return;
-        }
+            int width = (int)value;
 
-        Vec2I moveVec = MoveVector();
+            _textPrompt.Open("Resize - Enter height: ", TextPrompt.Result.Integer,  value =>
+            {
+                int height = (int)value;
 
-        if (moveVec == Vec2.Zero)
-        {
-            return;
-        }
-
-        bool orthogonal = moveVec.X == 0 || moveVec.Y == 0;
-
-        // for smooth diaganol movement
-        if (!orthogonal && _lastOrthogonal)
-        {
-            _cameraPos = _cameraPos.Round();
-        }
-
-        _lastOrthogonal = orthogonal;
-
-        _cameraPos += ((Vec2)moveVec).Normalized() * (float)(CameraSpeed * delta);
-
-        UpdateCanvasPosition();
-
-        if (Input.KeyPressed(Key.Space))
-        {
-            _canvas.Paint();
-        }
-    }
-
-    private void SlowMove(Vec2I move)
-    {
-        if (_fastMove)
-        {
-            return;
-        }
-
-        _cameraPos = _cameraPos.Round() + move;
-
-        UpdateCanvasPosition();
-    }
-
-    private void UpdateCanvasPosition()
-    {
-        _canvas.SetOffset(-(Vec2I)_cameraPos.Round());
-    }
-
-    private void ImportSif(string sif)
-    {
-        try
-        {
-            _canvas.Import(SIFUtils.Deserialize(sif));
-        }
-        catch (Exception e)
-        {
-            _alert.Show($"Failed to import: {e.Message}");
-        }
+                _canvas.Resize(width, height);
+            });
+        });
     }
 
     private Pixel HoveredBrush()
@@ -306,7 +264,82 @@ internal sealed class Manager : IRenderSource
         }
     }
 
+    private void Import()
+    {
+        var template = new VerticalSelector.Option();
+
+        _optionPrompt.Open(template.FromArray("Import SIF here", "Import from file"), selected =>
+        {
+            switch (selected)
+            {
+            case 0:
+                ImportSif();
+                break;
+            case 1:
+                ImportFile();
+                break;
+            }
+        });
+    }
+
+    private void ImportSif()
+    {
+        _textPrompt.Open("Enter SIF: ", sif =>
+        {
+            try
+            {
+                _canvas.Import(SIFUtils.Deserialize((string)sif));
+
+                _alert.Show("Import successful!", SCEColor.Green);
+            }
+            catch (Exception e)
+            {
+                _alert.Show($"Failed to import: {e.Message}");
+            }
+        });
+    }
+
+    private void ImportFile()
+    {
+        _textPrompt.Open("Enter file path: ", filepath =>
+        {
+            try
+            {
+                _canvas.Import(ImageSerializer.Deserialize((string)filepath));
+
+                _alert.Show("Import successful!", SCEColor.Green);
+            }
+            catch (Exception e)
+            {
+                _alert.Show($"Failed to import: {e.Message}");
+            }
+        });
+    }
+
     private void Export()
+    {
+        if (_export.Visible)
+        {
+            return;
+        }
+
+        var template = new VerticalSelector.Option();
+
+        _optionPrompt.Open(template.FromArray("Export here", "Export to file"), selected =>
+        {
+            switch (selected)
+            {
+            case 0:
+                ExportHere();
+                break;
+            case 1:
+                ExportFile();
+                break;
+            }
+        });
+    }
+
+    private void ExportHere()
     {
         _export.Visible = !_export.Visible;
 
@@ -315,7 +348,15 @@ internal sealed class Manager : IRenderSource
             return;
         }
 
-        _export.Text = _canvas.Export();
+        _export.Text = _canvas.ExportSif();
+    }
+
+    private void ExportFile()
+    {
+        _textPrompt.Open("Enter file path: ", filepath =>
+        {
+            _canvas.ExportToFile((string)filepath);
+        });
     }
 
     private void Display_OnResize(int width, int height)
@@ -324,8 +365,6 @@ internal sealed class Manager : IRenderSource
         _viewport.Height = height;
 
         _fpsUI.Width = width;
-
-        _canvas.SetCursorPosition(new Vec2I(width, height) / 2);
 
         _export.Width  = width;
         _export.Height = height;

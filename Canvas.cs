@@ -1,5 +1,6 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
+using SCEWin;
 
 namespace SifEditor;
 
@@ -12,6 +13,8 @@ internal sealed class Canvas : IRenderSource
         Right,
     }
 
+    private const double CameraSpeed = 40;
+
     private static readonly IReadOnlyCollection<Vec2I> FloodFillAxis =
     [
         Vec2I.Up, Vec2I.Down, Vec2I.Left, Vec2I.Right,
@@ -19,19 +22,21 @@ internal sealed class Canvas : IRenderSource
 
     private DisplayMap _data;
     private readonly DisplayMap _cursor;
-    private readonly TextBox _brushVisual;
+    private readonly TextLabel _brushVisual;
 
     private PaintMode _mode = PaintMode.Wide;
 
+    private bool _lastOrthogonal;
+
+    private Vec2 _cameraPos;
+
     public Canvas()
     {
-        _data = new DisplayMap(80, 40);
-
-        _data.Fill(Pixel.White);
+        _data = new DisplayMap(Image.Plain(20, 10, Pixel.White));
 
         _cursor = new DisplayMap(2, 1);
 
-        _brushVisual = new TextBox()
+        _brushVisual = new TextLabel()
         {
             Width = 19,
             Height = 1,
@@ -40,7 +45,10 @@ internal sealed class Canvas : IRenderSource
         };
 
         UpdateBrushVisual();
+        UpdateCursor();
     }
+
+    public Alert? Alert { get; set; }
 
     private Pixel _brush;
 
@@ -60,30 +68,66 @@ internal sealed class Canvas : IRenderSource
         }
     }
 
-    public void SetCursorPosition(Vec2I position)
-    {
-        _cursor.Offset = position;
-
-        UpdateCursor();
-    }
+    public bool FastMove { get; set; }
 
     public IEnumerable<IRenderable> Render()
     {
         return [_data, _cursor, _brushVisual];
     }
 
-    private Vec2I GetCursorCanvasPosition()
+    public void Update(double delta)
     {
-        return _cursor.Offset - _data.Offset;
+        if (!FastMove)
+        {
+            return;
+        }
+
+        Vec2I moveVec = Input.RawWASDMoveVector();
+
+        if (moveVec == Vec2.Zero)
+        {
+            return;
+        }
+
+        bool orthogonal = moveVec.X == 0 || moveVec.Y == 0;
+
+        // for smooth diaganol movement
+        if (!orthogonal && _lastOrthogonal)
+        {
+            _cameraPos = _cameraPos.Round();
+        }
+
+        _lastOrthogonal = orthogonal;
+
+        _cameraPos += ((Vec2)moveVec).Normalized() * (float)(CameraSpeed * delta);
+
+        UpdateCanvasPosition();
+
+        if (Input.KeyPressed(Key.Space))
+        {
+            Paint();
+        }
     }
 
-    public void SetOffset(Vec2I offset)
+    public void Display_OnResize(int width, int height)
     {
-        _data.Offset = offset;
+        _cursor.Offset = new Vec2I(width, height) / 2;
 
         UpdateCursor();
     }
 
+    public void MoveCamera(Vec2I move)
+    {
+        if (FastMove)
+        {
+            return;
+        }
+
+        _cameraPos = _cameraPos.Round() + move;
+
+        UpdateCanvasPosition();
+    }
+    
     public void Pick()
     {
         Vec2I pos = GetCursorCanvasPosition();
@@ -184,7 +228,7 @@ internal sealed class Canvas : IRenderSource
         UpdateCursor();
     }
 
-    public void NextMode()
+    public void NextPaintMode()
     {
         _mode = (PaintMode)(((int)_mode + 1) % 3);
 
@@ -201,9 +245,28 @@ internal sealed class Canvas : IRenderSource
         };
     }
 
-    public string Export()
+    public string ExportSif()
     {
         return SIFUtils.Serialize(_data);
+    }
+
+    public void ExportToFile(string filepath)
+    {
+        try
+        {
+            ImageSerializer.Serialize(filepath, _data);
+
+            Alert?.Show($"Saved to {filepath} successfully!", SCEColor.Green);
+        }
+        catch (Exception e)
+        {
+            Alert?.Show(e.Message);
+        }
+    }
+
+    public void Resize(int width, int height)
+    {
+        _data.Resize(width, height);
     }
 
     private void UpdateBrushVisual()
@@ -238,5 +301,17 @@ internal sealed class Canvas : IRenderSource
     private char CursorRight()
     {
         return _mode is PaintMode.Wide or PaintMode.Right ? '<' : '\0';
+    }
+
+    private Vec2I GetCursorCanvasPosition()
+    {
+        return _cursor.Offset - _data.Offset;
+    }
+
+    private void UpdateCanvasPosition()
+    {
+        _data.Offset = -(Vec2I)_cameraPos.Round();
+
+        UpdateCursor();
     }
 }

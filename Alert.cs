@@ -5,28 +5,30 @@ namespace SifEditor;
 
 internal sealed class Alert : IRenderSource
 {
-    private readonly TextBox _tb;
+    private readonly TextLabel _tb;
 
     private double _timer;
 
     public Alert()
     {
-        _tb = new TextBox()
+        _tb = new TextLabel()
         {
             Width = 50,
             Height = 2,
-            BasePixel = Pixel.DarkRed,
-            TextFgColor = SCEColor.White,
             TextBgColor = SCEColor.Transparent,
             Anchor = Anchor.Bottom,
-            TextWrapping = TextBox.Wrapping.Word,
+            TextWrapping = TextLabel.Wrapping.Word,
         };
     }
 
-    public void Show(string message, double time = 3)
+    public void Show(string message, SCEColor color = SCEColor.Red)
     {
         _tb.Text = message;
-        _timer = time;
+
+        _tb.BasePixel = new Pixel(color);
+        _tb.TextFgColor = color.Contrast();
+
+        _timer = 3;
 
         _tb.Visible = true;
     }

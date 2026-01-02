@@ -6,7 +6,7 @@ internal sealed class ConsoleInputStream
 {
     private readonly StringBuilder _sb = new();
 
-    public int CharacterIndex { get; private set; }
+    public int CharacterIndex { get; set; }
 
     public bool Next(ConsoleKeyInfo cki)
     {
