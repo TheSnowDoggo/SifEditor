@@ -6,6 +6,12 @@ namespace SifEditor;
 
 internal sealed class Manager : IRenderSource
 {
+    private static readonly VerticalSelector.Option OptionTemplate = new()
+    {
+        Anchor = Anchor.Center,
+        FitToLength = true,
+    };
+
     private readonly Updater _updater;
 
     private readonly Viewport _viewport;
@@ -63,12 +69,13 @@ internal sealed class Manager : IRenderSource
 
         for (int i = 0; i < 17; i++)
         {
-            SCEColor color = (SCEColor)i - 1;
+            SCEColor color = (SCEColor)i;
 
             var option = new VerticalSelector.Option()
             {
-                Text = color.ToString().PadRight(_brushSelector.Width),
+                Text = color.ToString(),
                 UnselectedBgColor = SCEColor.Transparent,
+                FitToLength = true,
             };
 
             _brushSelector.Options.Add(option);
@@ -253,7 +260,7 @@ internal sealed class Manager : IRenderSource
 
     private Pixel HoveredBrush()
     {
-        return new Pixel((SCEColor)_brushSelector.Selected - 1);
+        return new Pixel((SCEColor)_brushSelector.Selected);
     }
  
     private void SelectBrush()
@@ -266,9 +273,7 @@ internal sealed class Manager : IRenderSource
 
     private void Import()
     {
-        var template = new VerticalSelector.Option();
-
-        _optionPrompt.Open(template.FromArray("Import SIF here", "Import from file"), selected =>
+        _optionPrompt.Open(OptionTemplate.FromArray("Import SIF", "Import from file"), selected =>
         {
             switch (selected)
             {
@@ -323,9 +328,7 @@ internal sealed class Manager : IRenderSource
             return;
         }
 
-        var template = new VerticalSelector.Option();
-
-        _optionPrompt.Open(template.FromArray("Export here", "Export to file"), selected =>
+        _optionPrompt.Open(OptionTemplate.FromArray("Export here", "Export to file"), selected =>
         {
             switch (selected)
             {
