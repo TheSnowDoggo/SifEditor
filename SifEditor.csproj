@@ -5,14 +5,22 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <StartupObject></StartupObject>
+    <ApplicationIcon>icons\sif_editor_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="SCENeo">
-      <HintPath>..\SCENeo\bin\Debug\net9.0\SCENeo.dll</HintPath>
-    </Reference>
-    <Reference Include="SCEWin">
-      <HintPath>..\SCEWin\bin\Debug\net9.0-windows\SCEWin.dll</HintPath>
+    <Content Include="icons\sif_editor_icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SCENeo" Version="1.1.0" />
+    <PackageReference Include="SCEWin" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ConsoleUtility">
+      <HintPath>..\ConsoleUtility\bin\Release\net9.0\ConsoleUtility.dll</HintPath>
     </Reference>
   </ItemGroup>
 

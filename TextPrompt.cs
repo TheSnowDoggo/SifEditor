@@ -71,14 +71,14 @@ internal sealed class TextPrompt : IRenderSource
                 break;
             }
 
-            SetText(_message + _inputStream.ToString());
+            UpdateText();
             UpdateCursorOffset();
 
             break;
         }
     }
 
-    public bool Open(string message, Result result, Action<object> callback)
+    public bool Open(string message, Result result, string start, string end, Action<object> callback)
     {
         if (_label.Visible)
         {
@@ -89,12 +89,27 @@ internal sealed class TextPrompt : IRenderSource
         _callback = callback;
         _result = result;
 
-        SetText(message);
+        _inputStream.Append(start);
+        _inputStream.Append(end);
+
+        _inputStream.CharacterIndex = start.Length;
+
+        UpdateText();
         UpdateCursorOffset();
 
         _label.Visible = true;
 
         return true;
+    }
+
+    public bool Open(string message, Result result, Action<object> callback)
+    {
+        return Open(message, result, string.Empty, string.Empty, callback);
+    }
+
+    public bool Open(string message, string start, string end, Action<object> callback)
+    {
+        return Open(message, Result.String, start, end, callback);
     }
 
     public bool Open(string message, Action<object> callback)
@@ -189,8 +204,10 @@ internal sealed class TextPrompt : IRenderSource
         _blinkTimer = 0;
     }
 
-    private void SetText(string text)
+    private void UpdateText()
     {
+        string text = _message + _inputStream.ToString();
+
         int maxCharacters = _label.Width * _label.Height;
 
         if (text.Length <= maxCharacters)

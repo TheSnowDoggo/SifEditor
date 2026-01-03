@@ -27,8 +27,6 @@ internal sealed class Canvas : IRenderSource
         Right,
     }
 
-    private const double CameraSpeed = 40;
-
     private static readonly IReadOnlyCollection<Vec2I> FloodFillAxis =
     [
         Vec2I.Up, Vec2I.Down, Vec2I.Left, Vec2I.Right,
@@ -50,7 +48,7 @@ internal sealed class Canvas : IRenderSource
 
     public Canvas()
     {
-        _data = new DisplayMap(Image.Plain(20, 10, Pixel.White));
+        _data = new DisplayMap(DefaultImage());
 
         _cursor = new DisplayMap(2, 1);
 
@@ -133,12 +131,16 @@ internal sealed class Canvas : IRenderSource
         // for smooth diaganol movement
         if (!orthogonal && _lastOrthogonal)
         {
-            _cameraPos = _cameraPos.Round();
+            _cameraPos = new Vec2()
+            {
+                X = MathF.Round(_cameraPos.X),
+                Y = MathF.Round(_cameraPos.Y),
+            };
         }
 
         _lastOrthogonal = orthogonal;
 
-        _cameraPos += ((Vec2)moveVec).Normalized() * (float)(CameraSpeed * delta);
+        _cameraPos += ((Vec2)moveVec).Normalized() * new Vec2(2, 1) * (float)(Program.Config.CameraSpeed * delta) ;
 
         UpdateCanvasPosition();
 
@@ -349,6 +351,13 @@ internal sealed class Canvas : IRenderSource
         OnChange();
     }
 
+    public void ResetToDefault()
+    {
+        _data = new DisplayMap(DefaultImage());
+        CenterCameraOnImage();
+        OnChange();
+    }
+
     public void ExportDefault()
     {
         if (_fileData == null)
@@ -403,6 +412,11 @@ internal sealed class Canvas : IRenderSource
         {
             Alert?.Show(e.Message);
         }
+    }
+
+    private static Image DefaultImage()
+    {
+        return Image.Plain(Program.Config.DefaultCanvasWidth, Program.Config.DefaultCanvasHeight, new Pixel(Program.Config.DefaultCanvasColor));
     }
 
     private void CenterCameraOnImage()

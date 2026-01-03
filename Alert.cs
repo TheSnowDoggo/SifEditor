@@ -39,6 +39,11 @@ internal sealed class Alert : IRenderSource
 
     public void Show(string message, SCEColor color = SCEColor.Red)
     {
+        if (!Program.Config.AlertsEnabled)
+        {
+            return;
+        }
+
         _label.Text = message;
 
         _label.BasePixel = new Pixel(color);

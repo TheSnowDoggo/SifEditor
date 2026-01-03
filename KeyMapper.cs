@@ -77,7 +77,7 @@ internal sealed class KeyMapper : IRenderSource
             var option = new Option()
             {
                 Key = key,
-                Inhertited = Template,
+                Inherited = Template,
                 Text = $"{key.ToString().PadRight(longestKey)} - {inputMap.Name}",
             };
 

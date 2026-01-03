@@ -8,6 +8,11 @@ internal sealed class ConsoleInputStream
 
     public int CharacterIndex { get; set; }
 
+    public void Append(string text)
+    {
+        _sb.Append(text);
+    }
+
     public bool Next(ConsoleKeyInfo cki)
     {
         char c = cki.KeyChar;

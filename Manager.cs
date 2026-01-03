@@ -45,7 +45,7 @@ internal sealed partial class Manager : IRenderSource
         _updater = new Updater()
         {
             OnUpdate = Update,
-            FrameCap = 60,
+            FrameCap = Program.Config.StartFrameCapped ? Program.Config.LockedFrameCap : Updater.Uncapped,
         };
 
         _alert = new Alert();
@@ -68,6 +68,7 @@ internal sealed partial class Manager : IRenderSource
         {
             Height = 1,
             BasePixel = Pixel.Null,
+            Visible = Program.Config.ShowFPS,
         };
 
         _brushSelector = new ListBox()
@@ -94,7 +95,7 @@ internal sealed partial class Manager : IRenderSource
 
         _viewport = new Viewport()
         {
-            BasePixel = Pixel.DarkCyan,
+            BasePixel = new Pixel(Program.Config.DefaultBackgroundColor),
             Source = _renderManager,
         };
 
@@ -306,13 +307,24 @@ internal sealed partial class Manager : IRenderSource
 
     private void ResizePrompt()
     {
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize"])], result =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize", "Reset to Defualt"])], result =>
         {
             switch (result)
             {
-            case 0: Resize(false);
+            case 0: 
+                Resize(false);
                 break;
-            case 1: Resize(true);
+            case 1: 
+                Resize(true);
+                break;
+            case 2:
+                _optionPrompt.Open([.. MenuTemplate.SubOption(["No", "Yes, I may lose data."])], result =>
+                {
+                    if (result == 1)
+                    {
+                        _canvas.ResetToDefault();
+                    }
+                });
                 break;
             }
         });
@@ -365,7 +377,8 @@ internal sealed partial class Manager : IRenderSource
             return;
         }
 
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export", "Show SIF", "Export BINIMG file", "Export SIF file"])], selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export", "Show SIF", "Export BINIMG file", "Export SIF file"])],
+        selected =>
         {
             switch (selected)
             {
@@ -377,14 +390,16 @@ internal sealed partial class Manager : IRenderSource
                 _export.Text = _canvas.ExportSif();
                 break;
             case 2:
-                _optionPrompt.Open([.. MenuTemplate.SubOption(["Full", "Opaque", "BgOnly", "BgOnlyOpaque"])], selected =>
+                _optionPrompt.Open([.. MenuTemplate.SubOption(["Full", "Opaque", "BgOnly", "BgOnlyOpaque"])], 
+                selected =>
                 {
-                    _textPrompt.Open("Enter file path: ", filepath =>
-                        _canvas.ExportToImgFile((string)filepath, (ImageSerializer.Mode)selected));
+                    _textPrompt.Open("Enter file path: ", "", ".binimg", 
+                        filepath => _canvas.ExportToImgFile((string)filepath, (ImageSerializer.Mode)selected));
                 });
                 break;
             case 3:
-                _textPrompt.Open("Enter file path: ", filepath => _canvas.ExportToSifFile((string)filepath));
+                _textPrompt.Open("Enter file path: ", "", ".sif", 
+                    filepath => _canvas.ExportToSifFile((string)filepath));
                 break;
             }
         });
@@ -415,7 +430,7 @@ internal sealed partial class Manager : IRenderSource
 
     private void ToggleFramecap()
     {
-        _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? 60 : Updater.Uncapped;
+        _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? Program.Config.LockedFrameCap : Updater.Uncapped;
     }
 
     private void SetBackground()
