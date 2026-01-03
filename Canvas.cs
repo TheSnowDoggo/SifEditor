@@ -6,6 +6,20 @@ namespace SifEditor;
 
 internal sealed class Canvas : IRenderSource
 {
+    private sealed class FileData
+    {
+        public enum SaveType
+        {
+            BinImg,
+            Sif,
+        }
+
+        public string Filepath { get; set; } = string.Empty;
+        public SaveType Type { get; set; }
+        public ImageSerializer.Mode Encoding { get; set; }
+        public bool Changes { get; set; }
+    }
+
     public enum PaintMode
     {
         Wide,
@@ -32,6 +46,8 @@ internal sealed class Canvas : IRenderSource
 
     private Vec2I _displaySize;
 
+    private FileData? _fileData;
+
     public Canvas()
     {
         _data = new DisplayMap(Image.Plain(20, 10, Pixel.White));
@@ -49,6 +65,23 @@ internal sealed class Canvas : IRenderSource
 
     public Alert? Alert { get; set; }
 
+    private SCEColor _background;
+
+    public SCEColor Background
+    {
+        get { return _background; }
+        set
+        {
+            if (value == _background)
+            {
+                return;
+            }
+
+            _background = value;
+            UpdateCursor();
+        }
+    }
+
     private Pixel _brush;
 
     public Pixel Brush
@@ -62,7 +95,6 @@ internal sealed class Canvas : IRenderSource
             }
 
             _brush = value;
-
             UpdateBrushVisual();
         }
     }
@@ -79,6 +111,7 @@ internal sealed class Canvas : IRenderSource
         CenterCameraOnImage();
         UpdateBrushVisual();
         UpdateCursor();
+        OnChange();
     }
 
     public void Update(double delta)
@@ -163,6 +196,7 @@ internal sealed class Canvas : IRenderSource
             if (_data.InRange(pos))
             {
                 _data[pos] = Brush;
+                OnChange();
             }
 
             pos += Vec2I.Right;
@@ -170,12 +204,14 @@ internal sealed class Canvas : IRenderSource
             if (_data.InRange(pos))
             {
                 _data[pos] = Brush;
+                OnChange();
             }
             break;
         case PaintMode.Left:
             if (_data.InRange(pos))
             {
                 _data[pos] = Brush;
+                OnChange();
             }
             break;
         case PaintMode.Right:
@@ -184,6 +220,7 @@ internal sealed class Canvas : IRenderSource
             if (_data.InRange(pos))
             {
                 _data[pos] = Brush;
+                OnChange();
             }
             break;
         }
@@ -206,6 +243,8 @@ internal sealed class Canvas : IRenderSource
         {
             return;
         }
+
+        OnChange();
 
         var stack = new Stack<Vec2I>();
 
@@ -270,6 +309,8 @@ internal sealed class Canvas : IRenderSource
         {
             Import(ImageSerializer.Deserialize(filepath));
 
+            SetFileData(filepath, FileData.SaveType.BinImg);
+
             Alert?.Show("Import successful!", SCEColor.Green);
         }
         catch (Exception e)
@@ -284,6 +325,8 @@ internal sealed class Canvas : IRenderSource
         {
             Import(SIFSerializer.Deserialize(filepath));
 
+            SetFileData(filepath, FileData.SaveType.Sif);
+
             Alert?.Show("Import successful!", SCEColor.Green);
         }
         catch (Exception e)
@@ -296,12 +339,33 @@ internal sealed class Canvas : IRenderSource
     {
         _data.Resize(width, height);
         CenterCameraOnImage();
+        OnChange();
     }
 
     public void CleanResize(int width, int height)
     {
         _data = new DisplayMap(Image.Plain(width, height, Pixel.White));
         CenterCameraOnImage();
+        OnChange();
+    }
+
+    public void ExportDefault()
+    {
+        if (_fileData == null)
+        {
+            Alert?.Show("No filepath saved, use other export option.");
+            return;
+        }
+
+        switch (_fileData.Type)
+        {
+        case FileData.SaveType.BinImg:
+            ExportToImgFile(_fileData.Filepath, _fileData.Encoding);
+            break;
+        case FileData.SaveType.Sif:
+            ExportToSifFile(_fileData.Filepath);
+            break;
+        }
     }
 
     public string ExportSif()
@@ -309,11 +373,13 @@ internal sealed class Canvas : IRenderSource
         return SIFSerializer.Serialize(_data);
     }
 
-    public void ExportToImgFile(string filepath, bool opaque = false)
+    public void ExportToImgFile(string filepath, ImageSerializer.Mode encoding)
     {
         try
         {
-            ImageSerializer.Serialize(filepath, _data, opaque);
+            ImageSerializer.Serialize(filepath, _data, encoding);
+
+            SetFileData(filepath, FileData.SaveType.BinImg);
 
             Alert?.Show($"Saved to {filepath} successfully!", SCEColor.Green);
         }
@@ -328,6 +394,8 @@ internal sealed class Canvas : IRenderSource
         try
         {
             File.WriteAllText(filepath, SIFSerializer.Serialize(_data));
+
+            SetFileData(filepath, FileData.SaveType.Sif);
 
             Alert?.Show($"Saved to {filepath} successfully!", SCEColor.Green);
         }
@@ -359,21 +427,16 @@ internal sealed class Canvas : IRenderSource
     {
         Vec2I pos = CursorCanvasPosition();
 
-        if (_data.InRange(pos))
-        {
-            char c = _mode is PaintMode.Wide or PaintMode.Left ? '>' : '\0';
+        _cursor[0, 0] = new Pixel(_mode is PaintMode.Wide or PaintMode.Left ? '>' : '\0',
+                ColorAt(pos).Contrast(), SCEColor.Transparent);
 
-            _cursor[0, 0] = new Pixel(c, _data[pos].BgColor.Contrast(), SCEColor.Transparent);
-        }
+        _cursor[1, 0] = new Pixel(_mode is PaintMode.Wide or PaintMode.Right ? '<' : '\0',
+                ColorAt(pos + Vec2I.Right).Contrast(), SCEColor.Transparent);
+    }
 
-        pos += Vec2I.Right;
-
-        if (_data.InRange(pos))
-        {
-            char c = _mode is PaintMode.Wide or PaintMode.Right ? '<' : '\0';
-
-            _cursor[1, 0] = new Pixel(c, _data[pos].BgColor.Contrast(), SCEColor.Transparent);
-        }
+    private SCEColor ColorAt(Vec2I pos)
+    {
+        return _data.InRange(pos) ? _data[pos].BgColor : Background;
     }
 
     private void UpdateCanvasPosition()
@@ -381,5 +444,40 @@ internal sealed class Canvas : IRenderSource
         _data.Offset = -(Vec2I)_cameraPos.Round();
 
         UpdateCursor();
+    }
+
+    private void SetFileData(string filepath, FileData.SaveType type, ImageSerializer.Mode? encoding = null)
+    {
+        _fileData = new FileData()
+        {
+            Filepath = filepath,
+            Type = type,
+        };
+
+        if (encoding != null)
+        {
+            _fileData.Encoding = (ImageSerializer.Mode)encoding;
+            _fileData.Changes = false;
+        }
+
+        Console.Title = filepath;
+    }
+
+    private void OnChange()
+    {
+        if (_fileData == null)
+        {
+            Console.Title = "*unsaved";
+            return;
+        }
+
+        if (_fileData.Changes)
+        {
+            return;
+        }
+
+        _fileData.Changes = true;
+
+        Console.Title = $"*{_fileData.Filepath}";
     }
 }

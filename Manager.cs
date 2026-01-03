@@ -1,7 +1,6 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
 using SCEWin;
-using System.Collections.Frozen;
 
 namespace SifEditor;
 
@@ -197,7 +196,7 @@ internal sealed partial class Manager : IRenderSource
                 } },
             { ConsoleKey.B, new InputMap() {
                     Name   = "Set background to hovered brush",
-                    Action = () => _viewport.BasePixel = HoveredBrush(),
+                    Action = SetBackground,
                 } },
 
             // function
@@ -211,6 +210,8 @@ internal sealed partial class Manager : IRenderSource
         _keyMapper.KeyMappings = KeyMappings;
     }
 
+    public string? InitialFile { get; set; }
+
     public IEnumerable<IRenderable> Render()
     {
         return [_fpsUI, _brushSelector, _export];
@@ -221,6 +222,8 @@ internal sealed partial class Manager : IRenderSource
         _display.Update();
 
         _canvas.Start();
+
+        ImportInitialFile();
 
         _updater.Start();
     }
@@ -362,32 +365,64 @@ internal sealed partial class Manager : IRenderSource
             return;
         }
 
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Show SIF", "Export BINIMG file", "Export SIF file"])], selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export", "Show SIF", "Export BINIMG file", "Export SIF file"])], selected =>
         {
             switch (selected)
             {
             case 0:
+                _canvas.ExportDefault();
+                break;
+            case 1:
                 _export.Visible = true;
                 _export.Text = _canvas.ExportSif();
                 break;
-            case 1:
-                _optionPrompt.Open([.. MenuTemplate.SubOption(["Normal (supports transparency)", "Compact (no transparency)"])], selected =>
+            case 2:
+                _optionPrompt.Open([.. MenuTemplate.SubOption(["Full", "Opaque", "BgOnly", "BgOnlyOpaque"])], selected =>
                 {
-                    bool opaque = selected == 1;
-
-                    _textPrompt.Open("Enter file path: ", filepath => _canvas.ExportToImgFile((string)filepath, opaque));
+                    _textPrompt.Open("Enter file path: ", filepath =>
+                        _canvas.ExportToImgFile((string)filepath, (ImageSerializer.Mode)selected));
                 });
                 break;
-            case 2:
+            case 3:
                 _textPrompt.Open("Enter file path: ", filepath => _canvas.ExportToSifFile((string)filepath));
                 break;
             }
         });
     }
 
+    private void ImportInitialFile()
+    {
+        if (InitialFile == null)
+        {
+            return;
+        }
+
+        string extension = Path.GetExtension(InitialFile).ToLower();
+
+        switch (extension)
+        {
+        case ".binimg":
+            _canvas.ImportImgFile(InitialFile);
+            break;
+        case ".sif":
+            _canvas.ImportSifFile(InitialFile);
+            break;
+        default:
+            _alert.Show($"Unsupported file extention {extension}");
+            break;
+        }
+    }
+
     private void ToggleFramecap()
     {
         _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? 60 : Updater.Uncapped;
+    }
+
+    private void SetBackground()
+    {
+        _viewport.BasePixel = HoveredBrush();
+
+        _canvas.Background = _viewport.BasePixel.BgColor;
     }
 
     private void Display_OnResize(int width, int height)
