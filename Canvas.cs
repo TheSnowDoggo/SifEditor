@@ -30,6 +30,8 @@ internal sealed class Canvas : IRenderSource
 
     private Vec2 _cameraPos;
 
+    private Vec2I _displaySize;
+
     public Canvas()
     {
         _data = new DisplayMap(Image.Plain(20, 10, Pixel.White));
@@ -43,9 +45,6 @@ internal sealed class Canvas : IRenderSource
             TextBgColor = SCEColor.Transparent,
             Anchor = Anchor.Right,
         };
-
-        UpdateBrushVisual();
-        UpdateCursor();
     }
 
     public Alert? Alert { get; set; }
@@ -73,6 +72,13 @@ internal sealed class Canvas : IRenderSource
     public IEnumerable<IRenderable> Render()
     {
         return [_data, _cursor, _brushVisual];
+    }
+
+    public void Start()
+    {
+        CenterCameraOnImage();
+        UpdateBrushVisual();
+        UpdateCursor();
     }
 
     public void Update(double delta)
@@ -111,7 +117,9 @@ internal sealed class Canvas : IRenderSource
 
     public void Display_OnResize(int width, int height)
     {
-        _cursor.Offset = new Vec2I(width, height) / 2;
+        _displaySize = new Vec2I(width, height);
+
+        _cursor.Offset = _displaySize / 2;
 
         UpdateCursor();
     }
@@ -130,7 +138,7 @@ internal sealed class Canvas : IRenderSource
     
     public void Pick()
     {
-        Vec2I pos = GetCursorCanvasPosition();
+        Vec2I pos = CursorCanvasPosition();
 
         if (_mode == PaintMode.Right)
         {
@@ -147,7 +155,7 @@ internal sealed class Canvas : IRenderSource
 
     public void Paint()
     {
-        Vec2I pos = GetCursorCanvasPosition();
+        Vec2I pos = CursorCanvasPosition();
 
         switch (_mode)
         {
@@ -185,7 +193,7 @@ internal sealed class Canvas : IRenderSource
 
     public void FloodFill()
     {
-        Vec2I pos = GetCursorCanvasPosition();
+        Vec2I pos = CursorCanvasPosition();
 
         if (!_data.InRange(pos))
         {
@@ -237,12 +245,21 @@ internal sealed class Canvas : IRenderSource
 
     public void Import(Grid2D<Pixel> grid)
     {
-        Vec2I offset = _data.Offset;
+        _data = new DisplayMap(grid);
 
-        _data = new DisplayMap(grid)
-        {
-            Offset = offset
-        };
+        CenterCameraOnImage();
+    }
+
+    public void Resize(int width, int height)
+    {
+        _data.Resize(width, height);
+        CenterCameraOnImage();
+    }
+
+    public void CleanResize(int width, int height)
+    {
+        _data = new DisplayMap(Image.Plain(width, height, Pixel.White));
+        CenterCameraOnImage();
     }
 
     public string ExportSif()
@@ -264,9 +281,15 @@ internal sealed class Canvas : IRenderSource
         }
     }
 
-    public void Resize(int width, int height)
+    private void CenterCameraOnImage()
     {
-        _data.Resize(width, height);
+        _cameraPos = (_data.Size()  - _displaySize) / 2;
+        UpdateCanvasPosition();
+    }
+
+    private Vec2I CursorCanvasPosition()
+    {
+        return _cursor.Offset - _data.Offset;
     }
 
     private void UpdateBrushVisual()
@@ -278,34 +301,23 @@ internal sealed class Canvas : IRenderSource
 
     private void UpdateCursor()
     {
-        Vec2I pos = GetCursorCanvasPosition();
+        Vec2I pos = CursorCanvasPosition();
 
         if (_data.InRange(pos))
         {
-            _cursor[0, 0] = new Pixel(CursorLeft(), _data[pos].BgColor.Contrast(), SCEColor.Transparent);
+            char c = _mode is PaintMode.Wide or PaintMode.Left ? '>' : '\0';
+
+            _cursor[0, 0] = new Pixel(c, _data[pos].BgColor.Contrast(), SCEColor.Transparent);
         }
 
         pos += Vec2I.Right;
 
         if (_data.InRange(pos))
         {
-            _cursor[1, 0] = new Pixel(CursorRight(), _data[pos].BgColor.Contrast(), SCEColor.Transparent);
+            char c = _mode is PaintMode.Wide or PaintMode.Right ? '<' : '\0';
+
+            _cursor[1, 0] = new Pixel(c, _data[pos].BgColor.Contrast(), SCEColor.Transparent);
         }
-    }
-
-    private char CursorLeft()
-    {
-        return _mode is PaintMode.Wide or PaintMode.Left ? '>' : '\0';
-    }
-
-    private char CursorRight()
-    {
-        return _mode is PaintMode.Wide or PaintMode.Right ? '<' : '\0';
-    }
-
-    private Vec2I GetCursorCanvasPosition()
-    {
-        return _cursor.Offset - _data.Offset;
     }
 
     private void UpdateCanvasPosition()

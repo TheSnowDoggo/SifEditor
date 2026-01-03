@@ -1,16 +1,26 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
 using SCEWin;
+using System.Collections.Frozen;
 
 namespace SifEditor;
 
-internal sealed class Manager : IRenderSource
+internal sealed partial class Manager : IRenderSource
 {
-    private static readonly ListBox.Option OptionTemplate = new()
+    private static readonly ListBox.Option BrushTemplate = new()
     {
+        UnselectedBgColor = SCEColor.Transparent,
+        FitToLength = true,
+    };
+
+    private static readonly ListBox.Option MenuTemplate = new()
+    {
+        SelectedBgColor = SCEColor.Gray,
         Anchor = Anchor.Center,
         FitToLength = true,
     };
+
+    private readonly Dictionary<ConsoleKey, InputMap> KeyMappings;
 
     private readonly Updater _updater;
 
@@ -22,6 +32,7 @@ internal sealed class Manager : IRenderSource
     private readonly Canvas _canvas;
     private readonly TextPrompt _textPrompt;
     private readonly OptionPrompt _optionPrompt;
+    private readonly KeyMapper _keyMapper;
 
     private readonly RenderManager _renderManager = [];
 
@@ -35,6 +46,7 @@ internal sealed class Manager : IRenderSource
         _updater = new Updater()
         {
             OnUpdate = Update,
+            FrameCap = 60,
         };
 
         _alert = new Alert();
@@ -51,6 +63,8 @@ internal sealed class Manager : IRenderSource
 
         _optionPrompt = new OptionPrompt();
 
+        _keyMapper = new KeyMapper();
+
         _fpsUI = new TextLabel()
         {
             Height = 1,
@@ -65,21 +79,8 @@ internal sealed class Manager : IRenderSource
             Anchor = Anchor.Right,
             BasePixel = Pixel.DarkGray,
             StackMode = StackMode.TopDown,
+            Options = [..BrushTemplate.SubOption(Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString()))]
         };
-
-        for (int i = 0; i < 17; i++)
-        {
-            SCEColor color = (SCEColor)i;
-
-            var option = new ListBox.Option()
-            {
-                Text = color.ToString(),
-                UnselectedBgColor = SCEColor.Transparent,
-                FitToLength = true,
-            };
-
-            _brushSelector.Options.Add(option);
-        }
 
         _export = new TextLabel()
         {
@@ -89,7 +90,7 @@ internal sealed class Manager : IRenderSource
 
         _renderManager = new RenderManager()
         {
-            Sources = [_canvas, this, _textPrompt, _alert, _optionPrompt],
+            Sources = [_canvas, this, _textPrompt, _alert, _optionPrompt, _keyMapper],
         };
 
         _viewport = new Viewport()
@@ -106,16 +107,122 @@ internal sealed class Manager : IRenderSource
 
         _display.OnResize += Display_OnResize;
         _display.OnResize += _canvas.Display_OnResize;
-    }
+        _display.OnResize += _keyMapper.Display_OnResize;
 
-    public void Run()
-    {
-        _updater.Start();
+        KeyMappings = new()
+        {
+            { ConsoleKey.Escape, new InputMap() {
+                    Name   = "Back",
+                    Action = () => _export.Visible = false,
+                } },
+            { ConsoleKey.K, new InputMap() {
+                    Name = "Open keymaps",
+                    Action = _keyMapper.Open,
+                } },
+            
+            // prompts
+            { ConsoleKey.O, new InputMap() {
+                    Name   = "Export",
+                    Action = ExportPrompt,
+                } },
+            { ConsoleKey.I, new InputMap() {
+                    Name   = "Import",
+                    Action = ImportPrompt,
+                } },
+            { ConsoleKey.R, new InputMap() {
+                    Name   = "Resize",
+                    Action = ResizePrompt,
+                } },
+
+            // paint controls
+            { ConsoleKey.P, new InputMap() {
+                    Name   = "Pick",
+                    Action = _canvas.Pick,
+                } },
+            { ConsoleKey.Spacebar, new InputMap() {
+                    Name   = "Paint",
+                    Action = _canvas.Paint,
+                } },
+            { ConsoleKey.F, new InputMap() {
+                    Name   = "Flood fill",
+                    Action = _canvas.FloodFill,
+                } },
+            { ConsoleKey.T, new InputMap() {
+                    Name   = "Switch paint mode",
+                    Action = _canvas.NextPaintMode,
+                } },
+
+            // move
+            { ConsoleKey.W, new InputMap() {
+                    Name   = "Move camera up",
+                    Action = () => _canvas.MoveCamera(Vec2I.Up),
+                } },
+            { ConsoleKey.S, new InputMap() {
+                    Name   = "Move camera down",
+                    Action = () => _canvas.MoveCamera(Vec2I.Left * 2),
+                } },
+            { ConsoleKey.A, new InputMap() {
+                    Name   = "Move camera left",
+                    Action = () => _canvas.MoveCamera(Vec2I.Right * 2),
+                } },
+            { ConsoleKey.D, new InputMap() {
+                    Name   = "Move camera right",
+                    Action = () => _canvas.MoveCamera(Vec2I.Up),
+                } },
+            { ConsoleKey.Q, new InputMap() {
+                    Name   = "Move camera small left",
+                    Action = () => _canvas.MoveCamera(Vec2I.Left),
+                } },
+            { ConsoleKey.E, new InputMap() {
+                    Name   = "Move camera small right",
+                    Action = () => _canvas.MoveCamera(Vec2I.Right),
+                } },
+
+            // select
+            { ConsoleKey.Enter, new InputMap() {
+                    Name   = "Select brush",
+                    Action = SelectBrush,
+                } },
+            { ConsoleKey.UpArrow, new InputMap() {
+                    Name   = "Move brush selector up",
+                    Action = () => MoveSelector(-1),
+                } },
+            { ConsoleKey.DownArrow, new InputMap() {
+                    Name   = "Move brush selector down",
+                    Action = () => MoveSelector(+1),
+                } },
+            { ConsoleKey.Tab, new InputMap() {
+                    Name   = "Hide brush selector",
+                    Action = () => _brushSelector.Visible = !_brushSelector.Visible,
+                } },
+            { ConsoleKey.B, new InputMap() {
+                    Name   = "Set background to hovered brush",
+                    Action = () => _viewport.BasePixel = HoveredBrush(),
+                } },
+
+            // function
+
+            { ConsoleKey.F1, new InputMap() {
+                    Name   = "Toggle framecap",
+                    Action = ToggleFramecap,
+                } },
+        };
+
+        _keyMapper.KeyMappings = KeyMappings;
     }
 
     public IEnumerable<IRenderable> Render()
     {
         return [_fpsUI, _brushSelector, _export];
+    }
+
+    public void Start()
+    {
+        _display.Update();
+
+        _canvas.Start();
+
+        _updater.Start();
     }
 
     private void Update(double delta)
@@ -132,106 +239,44 @@ internal sealed class Manager : IRenderSource
 
     private void UpdateInput(double delta)
     {
+        if (_keyMapper.Visible)
+        {
+            LoadInput(_keyMapper.OnInput);
+            return;
+        }
+
         if (_optionPrompt.Visible)
         {
-            while (Console.KeyAvailable)
-            {
-                _optionPrompt.OnInput(Console.ReadKey(true));
-            }
-
+            LoadInput(_optionPrompt.OnInput);
             return;
         }
 
         if (_textPrompt.Visible)
         {
-            while (Console.KeyAvailable)
-            {
-                _textPrompt.OnInput(Console.ReadKey(true));
-            }
-
+            LoadInput(_textPrompt.OnInput);
             return;
         }
 
         _canvas.FastMove = Input.Capitalize();
 
-        while (Console.KeyAvailable)
-        {
-            OnInput(Console.ReadKey(true));
-        }
+        LoadInput(OnInput);
 
         _canvas.Update(delta);
     }
 
+    private void LoadInput(Action<ConsoleKeyInfo> action)
+    {
+        while (Console.KeyAvailable)
+        {
+            action.Invoke(Console.ReadKey(true));
+        }
+    }
+
     private void OnInput(ConsoleKeyInfo cki)
     {
-        switch (cki.Key)
+        if (KeyMappings.TryGetValue(cki.Key, out InputMap? inputMap))
         {
-        case ConsoleKey.Escape:
-            _export.Visible = false;
-            break;
-        case ConsoleKey.P:
-            _canvas.Pick();
-            break;
-        case ConsoleKey.O:
-            Export();
-            break;
-        case ConsoleKey.I:
-            Import();
-            break;
-        case ConsoleKey.Spacebar:
-            _canvas.Paint();
-            break;
-        case ConsoleKey.F:
-            _canvas.FloodFill();
-            break;
-        case ConsoleKey.Tab:
-            _brushSelector.Visible = !_brushSelector.Visible;
-            break;
-        case ConsoleKey.B:
-            _viewport.BasePixel = HoveredBrush();
-            break;
-        case ConsoleKey.R:
-            ResizePrompt();
-            break;
-        case ConsoleKey.T:
-            _canvas.NextPaintMode();
-            break;
-
-        // function
-        case ConsoleKey.F1:
-            _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? 60 : Updater.Uncapped;
-            break;
-
-        // move
-        case ConsoleKey.W:
-            _canvas.MoveCamera(Vec2I.Up);
-            break;
-        case ConsoleKey.S:
-            _canvas.MoveCamera(Vec2I.Down);
-            break;
-        case ConsoleKey.A:
-            _canvas.MoveCamera(Vec2I.Left * 2);
-            break;
-        case ConsoleKey.D:
-            _canvas.MoveCamera(Vec2I.Right * 2);
-            break;
-        case ConsoleKey.Q:
-            _canvas.MoveCamera(Vec2I.Left);
-            break;
-        case ConsoleKey.E:
-            _canvas.MoveCamera(Vec2I.Right);
-            break;
-
-        // select
-        case ConsoleKey.Enter:
-            SelectBrush();
-            break;
-        case ConsoleKey.UpArrow:
-            MoveSelector(-1);
-            break;
-        case ConsoleKey.DownArrow:
-            MoveSelector(+1);
-            break;
+            inputMap.Action?.Invoke();
         }
     }
 
@@ -241,21 +286,6 @@ internal sealed class Manager : IRenderSource
         {
             _brushSelector.WrapMove(move);
         }
-    }
-
-    private void ResizePrompt()
-    {
-        _textPrompt.Open("Resize - Enter width: ", TextPrompt.Result.Integer, value =>
-        {
-            int width = (int)value;
-
-            _textPrompt.Open("Resize - Enter height: ", TextPrompt.Result.Integer,  value =>
-            {
-                int height = (int)value;
-
-                _canvas.Resize(width, height);
-            });
-        });
     }
 
     private Pixel HoveredBrush()
@@ -271,17 +301,50 @@ internal sealed class Manager : IRenderSource
         }
     }
 
-    private void Import()
+    private void ResizePrompt()
     {
-        _optionPrompt.Open(OptionTemplate.FromArray("Import SIF", "Import from file"), selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize"])], result =>
+        {
+            switch (result)
+            {
+            case 0: Resize(false);
+                break;
+            case 1: Resize(true);
+                break;
+            }
+        });
+    }
+
+    private void Resize(bool clean)
+    {
+        _textPrompt.Open("Resize - Enter width: ", TextPrompt.Result.Integer, value =>
+        {
+            int width = (int)value;
+
+            _textPrompt.Open("Resize - Enter height: ", TextPrompt.Result.Integer, value =>
+            {
+                int height = (int)value;
+
+                if (clean)
+                {
+                    _canvas.CleanResize(width, height);
+                    return;
+                }
+
+                _canvas.Resize(width, height);
+            });
+        });
+    }
+
+    private void ImportPrompt()
+    {
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Import SIF", "Import from file"])], selected =>
         {
             switch (selected)
             {
-            case 0:
-                ImportSif();
+            case 0: ImportSif();
                 break;
-            case 1:
-                ImportFile();
+            case 1: ImportFile();
                 break;
             }
         });
@@ -321,22 +384,20 @@ internal sealed class Manager : IRenderSource
         });
     }
 
-    private void Export()
+    private void ExportPrompt()
     {
         if (_export.Visible)
         {
             return;
         }
 
-        _optionPrompt.Open(OptionTemplate.FromArray("Export here", "Export to file"), selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export here", "Export to file"])], selected =>
         {
             switch (selected)
             {
-            case 0:
-                ExportHere();
+            case 0: ExportHere();
                 break;
-            case 1:
-                ExportFile();
+            case 1: ExportFile();
                 break;
             }
         });
@@ -360,6 +421,11 @@ internal sealed class Manager : IRenderSource
         {
             _canvas.ExportToFile((string)filepath);
         });
+    }
+
+    private void ToggleFramecap()
+    {
+        _updater.FrameCap = _updater.FrameCap == Updater.Uncapped ? 60 : Updater.Uncapped;
     }
 
     private void Display_OnResize(int width, int height)

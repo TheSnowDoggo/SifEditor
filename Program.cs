@@ -8,6 +8,6 @@ internal static class Program
 
         var manager = new Manager();
 
-        manager.Run();
+        manager.Start();
     }
 }

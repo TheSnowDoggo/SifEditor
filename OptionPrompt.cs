@@ -5,13 +5,13 @@ namespace SifEditor;
 
 internal sealed class OptionPrompt : IRenderSource
 {
-    private readonly ListBox _vs;
+    private readonly ListBox _listBox;
 
     private Action<int>? _callback = null;
 
     public OptionPrompt()
     {
-        _vs = new ListBox()
+        _listBox = new ListBox()
         {
             Width = 30,
             Anchor = SCENeo.Anchor.Center | SCENeo.Anchor.Middle,
@@ -19,11 +19,11 @@ internal sealed class OptionPrompt : IRenderSource
         };
     }
 
-    public bool Visible { get { return _vs.Visible; } }
+    public bool Visible { get { return _listBox.Visible; } }
 
     public IEnumerable<IRenderable> Render()
     {
-        return [_vs];
+        return [_listBox];
     }
 
     public void OnInput(ConsoleKeyInfo cki)
@@ -35,28 +35,29 @@ internal sealed class OptionPrompt : IRenderSource
             break;
         case ConsoleKey.Enter:
             Exit();
-            _callback?.Invoke(_vs.Selected);
+            _callback?.Invoke(_listBox.Selected);
             break;
         case ConsoleKey.UpArrow:
-            _vs.WrapMove(1);
+            _listBox.WrapMove(-1);
             break;
         case ConsoleKey.DownArrow:
-            _vs.WrapMove(-1);
+            _listBox.WrapMove(+1);
             break;
         }
     }
 
     public void Open(UpdateList<ListBox.Option> options, Action<int> callback)
     {
-        _vs.Options = options;
-        _vs.Height = options.Count;
-        _vs.Visible = true;
+        _listBox.Options = options;
+        _listBox.Selected = 0;
+        _listBox.Height = options.Count;
+        _listBox.Visible = true;
 
         _callback = callback;
     }
 
     private void Exit()
     {
-        _vs.Visible = false;
+        _listBox.Visible = false;
     }
 }

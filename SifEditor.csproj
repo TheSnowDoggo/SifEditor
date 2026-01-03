@@ -8,7 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SCEWin" Version="1.0.0" />
+    <Reference Include="SCENeo">
+      <HintPath>..\SCENeo\bin\Debug\net9.0\SCENeo.dll</HintPath>
+    </Reference>
+    <Reference Include="SCEWin">
+      <HintPath>..\SCEWin\bin\Debug\net9.0-windows\SCEWin.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
