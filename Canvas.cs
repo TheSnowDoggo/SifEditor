@@ -250,6 +250,48 @@ internal sealed class Canvas : IRenderSource
         CenterCameraOnImage();
     }
 
+    public void ImportSif(string sif)
+    {
+        try
+        {
+            Import(SIFSerializer.DeserializeString(sif));
+
+            Alert?.Show("Import successful!", SCEColor.Green);
+        }
+        catch (Exception e)
+        {
+            Alert?.Show($"Failed to import: {e.Message}");
+        }
+    }
+
+    public void ImportImgFile(string filepath)
+    {
+        try
+        {
+            Import(ImageSerializer.Deserialize(filepath));
+
+            Alert?.Show("Import successful!", SCEColor.Green);
+        }
+        catch (Exception e)
+        {
+            Alert?.Show($"Failed to import: {e.Message}");
+        }
+    }
+
+    public void ImportSifFile(string filepath)
+    {
+        try
+        {
+            Import(SIFSerializer.Deserialize(filepath));
+
+            Alert?.Show("Import successful!", SCEColor.Green);
+        }
+        catch (Exception e)
+        {
+            Alert?.Show($"Failed to import: {e.Message}");
+        }
+    }
+
     public void Resize(int width, int height)
     {
         _data.Resize(width, height);
@@ -264,14 +306,28 @@ internal sealed class Canvas : IRenderSource
 
     public string ExportSif()
     {
-        return SIFUtils.Serialize(_data);
+        return SIFSerializer.Serialize(_data);
     }
 
-    public void ExportToFile(string filepath)
+    public void ExportToImgFile(string filepath, bool opaque = false)
     {
         try
         {
-            ImageSerializer.Serialize(filepath, _data);
+            ImageSerializer.Serialize(filepath, _data, opaque);
+
+            Alert?.Show($"Saved to {filepath} successfully!", SCEColor.Green);
+        }
+        catch (Exception e)
+        {
+            Alert?.Show(e.Message);
+        }
+    }
+
+    public void ExportToSifFile(string filepath)
+    {
+        try
+        {
+            File.WriteAllText(filepath, SIFSerializer.Serialize(_data));
 
             Alert?.Show($"Saved to {filepath} successfully!", SCEColor.Green);
         }

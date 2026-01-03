@@ -159,15 +159,15 @@ internal sealed partial class Manager : IRenderSource
                 } },
             { ConsoleKey.S, new InputMap() {
                     Name   = "Move camera down",
-                    Action = () => _canvas.MoveCamera(Vec2I.Left * 2),
+                    Action = () => _canvas.MoveCamera(Vec2I.Down),
                 } },
             { ConsoleKey.A, new InputMap() {
                     Name   = "Move camera left",
-                    Action = () => _canvas.MoveCamera(Vec2I.Right * 2),
+                    Action = () => _canvas.MoveCamera(Vec2I.Left * 2),
                 } },
             { ConsoleKey.D, new InputMap() {
                     Name   = "Move camera right",
-                    Action = () => _canvas.MoveCamera(Vec2I.Up),
+                    Action = () => _canvas.MoveCamera(Vec2I.Right * 2),
                 } },
             { ConsoleKey.Q, new InputMap() {
                     Name   = "Move camera small left",
@@ -338,48 +338,19 @@ internal sealed partial class Manager : IRenderSource
 
     private void ImportPrompt()
     {
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Import SIF", "Import from file"])], selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Import SIF here", "Import BINIMG file", "Import SIF file"])], selected =>
         {
             switch (selected)
             {
-            case 0: ImportSif();
+            case 0:
+                _textPrompt.Open("Enter SIF: ", sif => _canvas.ImportSif((string)sif));
                 break;
-            case 1: ImportFile();
+            case 1:
+                _textPrompt.Open("Enter BINIMG filepath: ", filepath => _canvas.ImportImgFile((string)filepath));
                 break;
-            }
-        });
-    }
-
-    private void ImportSif()
-    {
-        _textPrompt.Open("Enter SIF: ", sif =>
-        {
-            try
-            {
-                _canvas.Import(SIFUtils.Deserialize((string)sif));
-
-                _alert.Show("Import successful!", SCEColor.Green);
-            }
-            catch (Exception e)
-            {
-                _alert.Show($"Failed to import: {e.Message}");
-            }
-        });
-    }
-
-    private void ImportFile()
-    {
-        _textPrompt.Open("Enter file path: ", filepath =>
-        {
-            try
-            {
-                _canvas.Import(ImageSerializer.Deserialize((string)filepath));
-
-                _alert.Show("Import successful!", SCEColor.Green);
-            }
-            catch (Exception e)
-            {
-                _alert.Show($"Failed to import: {e.Message}");
+            case 2:
+                _textPrompt.Open("Enter SIF filepath: ", filepath => _canvas.ImportSifFile((string)filepath));
+                break;
             }
         });
     }
@@ -391,35 +362,26 @@ internal sealed partial class Manager : IRenderSource
             return;
         }
 
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export here", "Export to file"])], selected =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Show SIF", "Export BINIMG file", "Export SIF file"])], selected =>
         {
             switch (selected)
             {
-            case 0: ExportHere();
+            case 0:
+                _export.Visible = true;
+                _export.Text = _canvas.ExportSif();
                 break;
-            case 1: ExportFile();
+            case 1:
+                _optionPrompt.Open([.. MenuTemplate.SubOption(["Normal (supports transparency)", "Compact (no transparency)"])], selected =>
+                {
+                    bool opaque = selected == 1;
+
+                    _textPrompt.Open("Enter file path: ", filepath => _canvas.ExportToImgFile((string)filepath, opaque));
+                });
+                break;
+            case 2:
+                _textPrompt.Open("Enter file path: ", filepath => _canvas.ExportToSifFile((string)filepath));
                 break;
             }
-        });
-    }
-
-    private void ExportHere()
-    {
-        _export.Visible = !_export.Visible;
-
-        if (!_export.Visible)
-        {
-            return;
-        }
-
-        _export.Text = _canvas.ExportSif();
-    }
-
-    private void ExportFile()
-    {
-        _textPrompt.Open("Enter file path: ", filepath =>
-        {
-            _canvas.ExportToFile((string)filepath);
         });
     }
 
