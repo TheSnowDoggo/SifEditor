@@ -225,6 +225,14 @@ internal sealed partial class Manager : IRenderSource
         _updater.Start();
     }
 
+    private static void LoadInput(Action<ConsoleKeyInfo> action)
+    {
+        while (Console.KeyAvailable)
+        {
+            action.Invoke(Console.ReadKey(true));
+        }
+    }
+
     private void Update(double delta)
     {
         UpdateInput(delta);
@@ -262,14 +270,6 @@ internal sealed partial class Manager : IRenderSource
         LoadInput(OnInput);
 
         _canvas.Update(delta);
-    }
-
-    private void LoadInput(Action<ConsoleKeyInfo> action)
-    {
-        while (Console.KeyAvailable)
-        {
-            action.Invoke(Console.ReadKey(true));
-        }
     }
 
     private void OnInput(ConsoleKeyInfo cki)
