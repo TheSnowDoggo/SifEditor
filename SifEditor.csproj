@@ -10,7 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="LICENSE" />
+    <None Remove="README.md" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="icons\sif_editor_icon.ico" />
+    <Content Include="LICENSE" />
+    <Content Include="README.md" />
   </ItemGroup>
 
   <ItemGroup>
