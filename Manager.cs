@@ -307,7 +307,7 @@ internal sealed partial class Manager : IRenderSource
 
     private void ResizePrompt()
     {
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize", "Reset to Defualt"])], result =>
+        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize", "Reset to Defualt", "Trim Transparent"])], result =>
         {
             switch (result)
             {
@@ -325,6 +325,9 @@ internal sealed partial class Manager : IRenderSource
                         _canvas.ResetToDefault();
                     }
                 });
+                break;
+            case 3:
+                _canvas.TrimTransparent();
                 break;
             }
         });

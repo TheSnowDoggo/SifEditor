@@ -1,6 +1,7 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
 using SCEWin;
+using System.Diagnostics;
 
 namespace SifEditor;
 
@@ -351,6 +352,92 @@ internal sealed class Canvas : IRenderSource
         OnChange();
     }
 
+    public void TrimTransparent()
+    {
+        int left = LeftBound();
+
+        if (left == -1)
+        {
+            return;
+        }
+
+        var area = new Rect2DI()
+        {
+            Left = left,
+            Top = TopBound(),
+            Right = RightBound(),
+            Bottom = BottomBound(),
+        };
+
+        var newData = new DisplayMap(area.Size());
+
+        newData.Map(_data, area);
+
+        _data = newData;
+        CenterCameraOnImage();
+        OnChange();
+    }
+
+    private int LeftBound()
+    {
+        for (int y = 0; y < _data.Height; y++)
+        {
+            for (int x = 0; x < _data.Width; x++)
+            {
+                if (_data[x, y].BgColor != SCEColor.Transparent)
+                {
+                    return x;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private int TopBound()
+    {
+        for (int x = 0; x < _data.Width; x++)
+        {
+            for (int y = 0; y < _data.Height; y++)
+            {
+                if (_data[x, y].BgColor != SCEColor.Transparent)
+                {
+                    return y;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private int RightBound()
+    {
+        for (int y = 0; y < _data.Height; y++)
+        {
+            for (int x = _data.Width - 1; x >= 0; x--)
+            {
+                if (_data[x, y].BgColor != SCEColor.Transparent)
+                {
+                    return x + 1;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private int BottomBound()
+    {
+        for (int x = 0; x < _data.Width; x++)
+        {
+            for (int y = _data.Height - 1; y >= 0; y--)
+            {
+                if (_data[x, y].BgColor != SCEColor.Transparent)
+                {
+                    return y + 1;
+                }
+            }
+        }
+        return -1;
+    }
+
     public void ResetToDefault()
     {
         _data = new DisplayMap(DefaultImage());
@@ -421,7 +508,7 @@ internal sealed class Canvas : IRenderSource
 
     private void CenterCameraOnImage()
     {
-        _cameraPos = (_data.Size()  - _displaySize) / 2;
+        _cameraPos = (_data.Size() - _displaySize) / new Vec2I(2, 1) / 2 * new Vec2I(2, 1);
         UpdateCanvasPosition();
     }
 

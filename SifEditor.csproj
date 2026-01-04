@@ -26,10 +26,10 @@
       <HintPath>..\ConsoleUtility\bin\Release\net9.0\ConsoleUtility.dll</HintPath>
     </Reference>
     <Reference Include="SCENeo">
-      <HintPath>..\SCENeo\bin\Debug\net9.0\SCENeo.dll</HintPath>
+      <HintPath>..\SCENeo\bin\Release\net9.0\SCENeo.dll</HintPath>
     </Reference>
     <Reference Include="SCEWin">
-      <HintPath>..\SCEWin\bin\Debug\net9.0-windows\SCEWin.dll</HintPath>
+      <HintPath>..\SCEWin\bin\Release\net9.0-windows\SCEWin.dll</HintPath>
     </Reference>
   </ItemGroup>
 
