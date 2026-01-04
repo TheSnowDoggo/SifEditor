@@ -10,7 +10,7 @@ internal sealed class KeyMapper : IRenderSource
         public ConsoleKey Key { get; set; }
     }
 
-    private static ListBox.Option Template = new()
+    private static readonly ListBox.Option Template = new()
     {
         FitToLength = true,
     };

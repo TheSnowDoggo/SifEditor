@@ -77,7 +77,7 @@ internal sealed partial class Manager : IRenderSource
             Height = 17,
             Offset = new Vec2I(0, 1),
             Anchor = Anchor.Right,
-            BasePixel = Pixel.DarkGray,
+            BasePixel = Pixel.Black,
             StackMode = StackMode.TopDown,
             Options = [..BrushTemplate.SubOption(Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString()))]
         };
