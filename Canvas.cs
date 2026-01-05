@@ -354,20 +354,34 @@ internal sealed class Canvas : IRenderSource
 
     public void TrimTransparent()
     {
-        int left = LeftBound();
+        var area = new Rect2DI()
+        {
+            Left = _data.Width,
+            Top = _data.Height,
+            Right = -1,
+            Bottom = -1,
+        };
 
-        if (left == -1)
+        foreach (Vec2I position in SCEUtils.EnumerateArea(_data))
+        {
+            if (_data[position].BgColor == SCEColor.Transparent)
+            {
+                continue;
+            }
+
+            SetMin(ref area.Left, position.X);
+            SetMin(ref area.Top, position.Y);
+            SetMax(ref area.Right, position.X);
+            SetMax(ref area.Bottom, position.Y);
+        }
+
+        if (area.Right == -1)
         {
             return;
         }
 
-        var area = new Rect2DI()
-        {
-            Left = left,
-            Top = TopBound(),
-            Right = RightBound(),
-            Bottom = BottomBound(),
-        };
+        area.Right++;
+        area.Bottom++;
 
         var newData = new DisplayMap(area.Size());
 
@@ -378,64 +392,20 @@ internal sealed class Canvas : IRenderSource
         OnChange();
     }
 
-    private int LeftBound()
+    private static void SetMax(ref int set, int value)
     {
-        for (int y = 0; y < _data.Height; y++)
+        if (value > set)
         {
-            for (int x = 0; x < _data.Width; x++)
-            {
-                if (_data[x, y].BgColor != SCEColor.Transparent)
-                {
-                    return x;
-                }
-            }
+            set = value;
         }
-        return -1;
     }
 
-    private int TopBound()
+    private static void SetMin(ref int set, int value)
     {
-        for (int x = 0; x < _data.Width; x++)
+        if (value < set)
         {
-            for (int y = 0; y < _data.Height; y++)
-            {
-                if (_data[x, y].BgColor != SCEColor.Transparent)
-                {
-                    return y;
-                }
-            }
+            set = value;
         }
-        return -1;
-    }
-
-    private int RightBound()
-    {
-        for (int y = 0; y < _data.Height; y++)
-        {
-            for (int x = _data.Width - 1; x >= 0; x--)
-            {
-                if (_data[x, y].BgColor != SCEColor.Transparent)
-                {
-                    return x + 1;
-                }
-            }
-        }
-        return -1;
-    }
-
-    private int BottomBound()
-    {
-        for (int x = 0; x < _data.Width; x++)
-        {
-            for (int y = _data.Height - 1; y >= 0; y--)
-            {
-                if (_data[x, y].BgColor != SCEColor.Transparent)
-                {
-                    return y + 1;
-                }
-            }
-        }
-        return -1;
     }
 
     public void ResetToDefault()

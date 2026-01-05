@@ -2,7 +2,7 @@
 
 namespace SifEditor;
 
-internal sealed class ConsoleInputStream
+public sealed class ConsoleInputStream
 {
     private readonly StringBuilder _sb = new();
 
@@ -15,8 +15,6 @@ internal sealed class ConsoleInputStream
 
     public bool Next(ConsoleKeyInfo cki)
     {
-        char c = cki.KeyChar;
-
         switch (cki.Key)
         {
         case ConsoleKey.Backspace:
@@ -48,6 +46,8 @@ internal sealed class ConsoleInputStream
 
             break;
         default:
+            char c = cki.KeyChar;
+
             if (c < ' ')
             {
                 return false;
