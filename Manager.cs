@@ -106,9 +106,9 @@ internal sealed partial class Manager : IRenderSource
             Output = WinOutput.Instance,
         };
 
-        _display.OnResize += Display_OnResize;
-        _display.OnResize += _canvas.Display_OnResize;
-        _display.OnResize += _keyMapper.Display_OnResize;
+        _display.Resized += Display_OnResize;
+        _display.Resized += _canvas.Display_OnResize;
+        _display.Resized += _keyMapper.Display_OnResize;
 
         KeyMappings = new()
         {
