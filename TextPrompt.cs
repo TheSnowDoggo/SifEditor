@@ -35,7 +35,7 @@ internal sealed class TextPrompt : IRenderSource
             Width = 80,
             Height = 3,
             Anchor = Anchor.Center | Anchor.Middle,
-            TextWrapping = TextLabel.Wrapping.Character,
+            TextWrapping = TextWrapping.Character,
             Visible = false,
         };
 

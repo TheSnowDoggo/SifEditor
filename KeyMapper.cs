@@ -5,12 +5,12 @@ namespace SifEditor;
 
 internal sealed class KeyMapper : IRenderSource
 {
-    private sealed class Option : ListBox.Option
+    private sealed class Option : ListBoxItem
     {
         public ConsoleKey Key { get; set; }
     }
 
-    private static readonly ListBox.Option Template = new()
+    private static readonly ListBoxItem Template = new()
     {
         FitToLength = true,
     };
@@ -48,7 +48,7 @@ internal sealed class KeyMapper : IRenderSource
         case ConsoleKey.Escape:
             _listBox.Visible = false;
 
-            _listBox.Options = null!;
+            _listBox.Items = null;
             break;
         case ConsoleKey.UpArrow:
             _listBox.ScrollMove(-1);
@@ -68,7 +68,7 @@ internal sealed class KeyMapper : IRenderSource
 
     private void UpdateListBox()
     {
-        _listBox.Options = new UpdateList<ListBox.Option>(KeyMappings.Count);
+        _listBox.Items = new UpdateList<ListBoxItem>(KeyMappings.Count);
 
         int longestKey = KeyMappings.Keys.Max(key => key.ToString().Length);
 
@@ -81,7 +81,7 @@ internal sealed class KeyMapper : IRenderSource
                 Text = $"{key.ToString().PadRight(longestKey)} - {inputMap.Name}",
             };
 
-            _listBox.Options.Add(option);
+            _listBox.Items.Add(option);
         }
     }
 }

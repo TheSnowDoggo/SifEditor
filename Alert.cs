@@ -17,7 +17,7 @@ internal sealed class Alert : IRenderSource
             Height = 2,
             TextBgColor = SCEColor.Transparent,
             Anchor = Anchor.Bottom,
-            TextWrapping = TextLabel.Wrapping.Word,
+            TextWrapping = TextWrapping.Word,
         };
     }
 

@@ -1,18 +1,19 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
 using SCEWin;
+using SCEWin.Input;
 
 namespace SifEditor;
 
 internal sealed partial class Manager : IRenderSource
 {
-    private static readonly ListBox.Option BrushTemplate = new()
+    private static readonly ListBoxItem BrushTemplate = new()
     {
         UnselectedBgColor = SCEColor.Transparent,
         FitToLength = true,
     };
 
-    private static readonly ListBox.Option MenuTemplate = new()
+    private static readonly ListBoxItem MenuTemplate = new()
     {
         SelectedBgColor = SCEColor.Gray,
         Anchor = Anchor.Center,
@@ -79,13 +80,13 @@ internal sealed partial class Manager : IRenderSource
             Anchor = Anchor.Right,
             BasePixel = Pixel.Black,
             StackMode = StackMode.TopDown,
-            Options = [..BrushTemplate.SubOption(Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString()))]
+            Items = [..BrushTemplate.SubOption(Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString()))]
         };
 
         _export = new TextLabel()
         {
             Visible = false,
-            TextWrapping = TextLabel.Wrapping.Character,
+            TextWrapping = TextWrapping.Character,
         };
 
         _renderManager = new RenderManager()

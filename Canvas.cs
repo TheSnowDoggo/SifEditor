@@ -1,7 +1,7 @@
 ﻿using SCENeo;
 using SCENeo.Ui;
-using SCEWin;
-using System.Diagnostics;
+using SCENeo.Input;
+using SCEWin.Input;
 
 namespace SifEditor;
 

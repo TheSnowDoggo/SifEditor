@@ -46,11 +46,11 @@ internal sealed class OptionPrompt : IRenderSource
         }
     }
 
-    public void Open(UpdateList<ListBox.Option> options, Action<int> callback)
+    public void Open(UpdateList<ListBoxItem> items, Action<int> callback)
     {
-        _listBox.Options = options;
+        _listBox.Items = items;
         _listBox.Selected = 0;
-        _listBox.Height = options.Count;
+        _listBox.Height = items.Count;
         _listBox.Visible = true;
 
         _callback = callback;
