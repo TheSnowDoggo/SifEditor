@@ -408,6 +408,23 @@ internal sealed class Canvas : IRenderSource
         }
     }
 
+    public void WriteText(string text)
+    {
+        Vec2I pos = CursorCanvasPosition();
+
+        if (_mode == PaintMode.Right)
+        {
+            pos += Vec2I.Right;
+        }
+
+        if (!_data.InRange(pos))
+        {
+            return;
+        }
+
+        _data.MapLine(text, pos, _brush.BgColor, SCEColor.Transparent);
+    }
+
     public void ResetToDefault()
     {
         _data = new DisplayMap(DefaultImage());

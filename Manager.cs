@@ -43,9 +43,8 @@ internal sealed partial class Manager : IRenderSource
 
     public Manager()
     {
-        _updater = new Updater()
+        _updater = new Updater(Update)
         {
-            OnUpdate = Update,
             FrameCap = Program.Config.StartFrameCapped ? Program.Config.LockedFrameCap : Updater.Uncapped,
         };
 
@@ -80,7 +79,7 @@ internal sealed partial class Manager : IRenderSource
             Anchor = Anchor.Right,
             BasePixel = Pixel.Black,
             StackMode = StackMode.TopDown,
-            Items = [..BrushTemplate.SubOption(Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString()))]
+            Items = BrushTemplate.FromTemplate([.. Enumerable.Range(0, 17).Select(i => ((SCEColor)i).ToString())]),
         };
 
         _export = new TextLabel()
@@ -151,6 +150,10 @@ internal sealed partial class Manager : IRenderSource
             { ConsoleKey.T, new InputMap() {
                     Name   = "Switch paint mode",
                     Action = _canvas.NextPaintMode,
+                } },
+            { ConsoleKey.L, new InputMap() {
+                    Name = "Opens text prompt",
+                    Action =  OpenTextPrompt,
                 } },
 
             // move
@@ -308,7 +311,7 @@ internal sealed partial class Manager : IRenderSource
 
     private void ResizePrompt()
     {
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Resize Current", "Clean Resize", "Reset to Defualt", "Trim Transparent"])], result =>
+        _optionPrompt.Open(MenuTemplate.FromTemplate(["Resize Current", "Clean Resize", "Reset to Defualt", "Trim Transparent"]), result =>
         {
             switch (result)
             {
@@ -319,7 +322,7 @@ internal sealed partial class Manager : IRenderSource
                 Resize(true);
                 break;
             case 2:
-                _optionPrompt.Open([.. MenuTemplate.SubOption(["No", "Yes, I may lose data."])], result =>
+                _optionPrompt.Open(MenuTemplate.FromTemplate(["No", "Yes, I may lose data."]), result =>
                 {
                     if (result == 1)
                     {
@@ -357,7 +360,7 @@ internal sealed partial class Manager : IRenderSource
 
     private void ImportPrompt()
     {
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Import SIF here", "Import BINIMG file", "Import SIF file"])], selected =>
+        _optionPrompt.Open(MenuTemplate.FromTemplate(["Import SIF here", "Import BINIMG file", "Import SIF file"]), selected =>
         {
             switch (selected)
             {
@@ -381,7 +384,7 @@ internal sealed partial class Manager : IRenderSource
             return;
         }
 
-        _optionPrompt.Open([.. MenuTemplate.SubOption(["Export", "Show SIF", "Export BINIMG file", "Export SIF file"])],
+        _optionPrompt.Open(MenuTemplate.FromTemplate(["Export", "Show SIF", "Export BINIMG file", "Export SIF file"]),
         selected =>
         {
             switch (selected)
@@ -394,7 +397,7 @@ internal sealed partial class Manager : IRenderSource
                 _export.Text = _canvas.ExportSif();
                 break;
             case 2:
-                _optionPrompt.Open([.. MenuTemplate.SubOption(["Full", "Opaque", "BgOnly", "BgOnlyOpaque"])], 
+                _optionPrompt.Open(MenuTemplate.FromTemplate(["Full", "Opaque", "BgOnly", "BgOnlyOpaque"]), 
                 selected =>
                 {
                     _textPrompt.Open("Enter file path: ", "", ".binimg", 
@@ -406,6 +409,14 @@ internal sealed partial class Manager : IRenderSource
                     filepath => _canvas.ExportToSifFile((string)filepath));
                 break;
             }
+        });
+    }
+
+    private void OpenTextPrompt()
+    {
+        _textPrompt.Open("Enter Text: ", result =>
+        {
+            _canvas.WriteText((string)result);
         });
     }
 
